@@ -61,6 +61,11 @@ def create_app() -> FastAPI:
             content={"error": "GAME_FINISHED", "message": str(exc)},
         )
 
+    # Routers
+    from chess_ai.presentation.api.routes.games import router as games_router
+
+    app.include_router(games_router)
+
     @app.get("/health", tags=["System"])
     async def health_check() -> dict[str, str]:
         return {

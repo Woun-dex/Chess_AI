@@ -1,17 +1,12 @@
 """Unit-of-work implementations: SQLAlchemy async UoW and in-memory UoW for testing."""
 
 from types import TracebackType
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from chess_ai.infrastructure.repositories.game_repository import SqlAlchemyGameRepository
 from chess_ai.infrastructure.repositories.user_repository import SqlAlchemyUserRepository
-
-if TYPE_CHECKING:
-    from chess_ai.infrastructure.repositories.in_memory_game_repository import (
-        InMemoryGameRepository,
-    )
 
 
 class SqlAlchemyUnitOfWork:
@@ -55,3 +50,31 @@ class SqlAlchemyUnitOfWork:
     async def rollback(self) -> None:
         """Discard all pending changes."""
         await self._session.rollback()
+
+
+class InMemoryUnitOfWork:
+    """In-memory UoW for development/testing without a real database."""
+
+    def __init__(self) -> None:
+        from chess_ai.infrastructure.repositories.in_memory_game_repository import (
+            InMemoryGameRepository,
+        )
+
+        self.games: InMemoryGameRepository = InMemoryGameRepository()
+
+    async def __aenter__(self) -> "InMemoryUnitOfWork":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        pass
+
+    async def commit(self) -> None:
+        pass  # In-memory: no-op
+
+    async def rollback(self) -> None:
+        pass  # In-memory: no-op
