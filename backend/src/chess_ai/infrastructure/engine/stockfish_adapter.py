@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import chess
 import chess.engine
 
@@ -40,9 +42,9 @@ class StockfishAdapter(EnginePort):
         self._engine_path = engine_path
         self._threads = threads
         self._hash_mb = hash_mb
-        self._engine: chess.engine.SimpleEngine | None = None
+        self._engine: Any = None
 
-    async def _get_engine(self) -> chess.engine.SimpleEngine:
+    async def _get_engine(self) -> Any:
         """Lazily initialize; in production use an engine pool."""
         if self._engine is None:
             # Use asyncio protocol for non-blocking I/O
@@ -88,7 +90,7 @@ class StockfishAdapter(EnginePort):
     ) -> list[MoveAnalysisResult]:
         results: list[MoveAnalysisResult] = []
 
-        for fen_before, move_uci in zip(fens, moves_uci):
+        for fen_before, move_uci in zip(fens, moves_uci, strict=False):
             board = chess.Board(fen_before)
 
             # Evaluate BEFORE the move

@@ -8,7 +8,11 @@ from chess_ai.infrastructure.db.models.learning_profile import (
     TrainingPlanItemModel,
     TrainingPlanModel,
 )
-from chess_ai.infrastructure.db.models.lesson import ExerciseAttemptModel, ExerciseModel, LessonModel
+from chess_ai.infrastructure.db.models.lesson import (
+    ExerciseAttemptModel,
+    ExerciseModel,
+    LessonModel,
+)
 from chess_ai.infrastructure.db.models.move_analysis import MoveAnalysisModel
 from chess_ai.infrastructure.db.models.outbox import OutboxEventModel
 from chess_ai.infrastructure.db.models.player_profile import PlayerProfileModel

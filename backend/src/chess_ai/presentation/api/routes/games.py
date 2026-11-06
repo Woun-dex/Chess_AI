@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from chess_ai.application.commands.game_commands import CreateGameCommand, MakeMoveCommand
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
-from chess_ai.domain.models.game import Game, GameStatus
+from chess_ai.domain.models.game import Game
 from chess_ai.infrastructure.engine.opponent_strategy import BotOpponentFactory
 from chess_ai.infrastructure.unit_of_work import InMemoryUnitOfWork
 
@@ -61,7 +61,7 @@ class GameResponse(BaseModel):
     moves: list[MoveResponse]
 
     @classmethod
-    def from_domain(cls, game: Game) -> "GameResponse":
+    def from_domain(cls, game: Game) -> GameResponse:
         return cls(
             game_id=game.game_id,
             status=game.status.value,

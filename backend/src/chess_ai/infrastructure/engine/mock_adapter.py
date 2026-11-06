@@ -19,14 +19,14 @@ class MockEngineAdapter(EnginePort):
         self,
         fen: str,
         depth: int = 18,
-        time_limit_secs: float = 1.0,
+        _time_limit_secs: float = 1.0,
     ) -> PositionEvaluation:
         board = chess.Board(fen)
         legal_moves = list(board.legal_moves)
         best = legal_moves[0].uci() if legal_moves else ""
         return PositionEvaluation(
             fen=fen,
-            centipawns=20,  # slight white edge
+            centipawns=20,
             mate_in=None,
             best_move_uci=best,
             pv=[best] if best else [],
@@ -40,7 +40,7 @@ class MockEngineAdapter(EnginePort):
         depth: int = 16,
     ) -> list[MoveAnalysisResult]:
         results: list[MoveAnalysisResult] = []
-        for fen, uci in zip(fens, moves_uci):
+        for fen, uci in zip(fens, moves_uci, strict=False):
             board = chess.Board(fen)
             move = chess.Move.from_uci(uci)
             san = board.san(move)

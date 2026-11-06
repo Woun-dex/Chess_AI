@@ -56,11 +56,12 @@ class InMemoryUnitOfWork:
     """In-memory UoW for development/testing without a real database."""
 
     def __init__(self) -> None:
+        from chess_ai.domain.ports.repository import GameRepositoryPort
         from chess_ai.infrastructure.repositories.in_memory_game_repository import (
             InMemoryGameRepository,
         )
 
-        self.games: InMemoryGameRepository = InMemoryGameRepository()
+        self.games: GameRepositoryPort = InMemoryGameRepository()
 
     async def __aenter__(self) -> "InMemoryUnitOfWork":
         return self
@@ -69,7 +70,7 @@ class InMemoryUnitOfWork:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        exc_tb: object | None,
     ) -> None:
         pass
 

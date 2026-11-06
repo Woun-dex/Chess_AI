@@ -17,15 +17,14 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
       - name: Set up Python
         run: uv python install 3.12
 
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: |
-          uv venv
-          uv pip install -e ".[dev]"
+        run: uv sync --dev
 
       - name: Ruff Linter & Formatter Check
         working-directory: ./backend
@@ -54,11 +53,11 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: frontend/package.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install Frontend Dependencies
         working-directory: ./frontend
-        run: npm ci || npm install
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: TypeScript Compilation Check
         working-directory: ./frontend

@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 import chess
 import chess.engine
@@ -45,7 +46,7 @@ class StockfishBotStrategy(OpponentStrategy):
     def __init__(self, engine_path: str, skill_level: int = 10) -> None:
         self._engine_path = engine_path
         self._skill_level = max(0, min(20, skill_level))  # Clamp 0-20
-        self._engine: chess.engine.SimpleEngine | None = None
+        self._engine: Any = None
 
     async def choose_move(self, fen: str) -> str:
         if self._engine is None:
@@ -62,14 +63,14 @@ class StockfishBotStrategy(OpponentStrategy):
                 board = chess.Board(fen)
                 legal = list(board.legal_moves)
                 if not legal:
-                    raise ValueError("No legal moves in position")
+                    raise ValueError("No legal moves in position") from None
                 return random.choice(legal).uci()
 
         board = chess.Board(fen)
         result = await self._engine.play(board, chess.engine.Limit(time=0.1))
         if result.move is None:
             raise ValueError("Stockfish returned no move")
-        return result.move.uci()
+        return str(result.move.uci())
 
     async def close(self) -> None:
         if self._engine:

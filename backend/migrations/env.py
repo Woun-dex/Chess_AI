@@ -6,11 +6,12 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import chess_ai.infrastructure.db.models  # noqa: F401  # side-effect: registers all models
+
 # ---------------------------------------------------------------------------
 # Import Base and all models so their metadata is registered before autogenerate
 # ---------------------------------------------------------------------------
-from chess_ai.infrastructure.db.base import Base  # noqa: F401
-import chess_ai.infrastructure.db.models  # noqa: F401  # side-effect: registers all models
+from chess_ai.infrastructure.db.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
