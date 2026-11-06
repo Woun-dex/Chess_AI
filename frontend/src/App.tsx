@@ -1,110 +1,152 @@
-import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Activity, ChevronDown, Flag, FlipHorizontal, Loader2, RotateCcw, Settings2,
+  Shield, Sparkles, Swords, TimerReset, Trophy, X,
+} from 'lucide-react';
 import { ChessBoard } from './components/ChessBoard';
-import { EvalBar } from './components/EvalBar';
-import { TutorCoach } from './components/TutorCoach';
-import { checkBackendHealth } from './services/api';
-import { MoveRecord } from './types/chess';
-import { RotateCcw, ShieldAlert } from 'lucide-react';
+import { checkBackendHealth, createGame, makeMove, resignGame } from './services/api';
+import { CreateGamePayload, GameResponse, GameSettings, MoveRecord, OpponentType } from './types/chess';
+
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+const PLAYER_ID = 'player1';
+const formatClock = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+
+const defaultSettings: GameSettings = {
+  playerColor: 'white',
+  opponentType: 'random',
+  botSkillLevel: 10,
+  timeControlSeconds: 600,
+};
+
+function toMoves(game: GameResponse): MoveRecord[] {
+  return game.moves.map((move, index) => ({
+    ...move,
+    fen_before: index === 0 ? START_FEN : game.moves[index - 1].fen_after,
+    move_number: index + 1,
+  }));
+}
 
 export const App: React.FC = () => {
-  const [fen, setFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  const [settings, setSettings] = useState(defaultSettings);
+  const [game, setGame] = useState<GameResponse | null>(null);
   const [moves, setMoves] = useState<MoveRecord[]>([]);
-  const [backendStatus, setBackendStatus] = useState<string>('connecting...');
-  const [evalScore, setEvalScore] = useState<number | null>(20); // +0.20 opening edge
-  const [mateIn, setMateIn] = useState<number | null>(null);
+  const [clocks, setClocks] = useState({ white: 600, black: 600 });
+  const [orientation, setOrientation] = useState<'white' | 'black'>('white');
+  const [backendStatus, setBackendStatus] = useState('connecting');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const playerColor = settings.playerColor === 'random' ? 'white' : settings.playerColor;
+  const isHumanTurn = game && game.turn === playerColor;
+  const lastMove = moves[moves.length - 1];
+  const gameOver = game?.status !== 'in_progress';
 
   useEffect(() => {
-    checkBackendHealth()
-      .then((res) => setBackendStatus(res.status))
-      .catch(() => setBackendStatus('mock-mode'));
+    checkBackendHealth().then(() => setBackendStatus('online')).catch(() => setBackendStatus('offline'));
   }, []);
 
-  const handleMove = (uci: string, san: string) => {
-    // Record move
-    const newMove: MoveRecord = {
-      move_id: String(Date.now()),
-      uci,
-      san,
-      fen_before: fen,
-      fen_after: fen, // Will be updated on actual chess state sync
-      move_number: moves.length + 1,
-      color: moves.length % 2 === 0 ? 'white' : 'black',
+  useEffect(() => {
+    if (!game || gameOver || !settings.timeControlSeconds) return;
+    const interval = window.setInterval(() => {
+      setClocks((current) => ({ ...current, [game.turn]: Math.max(0, current[game.turn] - 1) }));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [game, gameOver, settings.timeControlSeconds]);
+
+  const startGame = useCallback(async (nextSettings = settings) => {
+    setBusy(true);
+    setError(null);
+    const selectedColor = nextSettings.playerColor === 'random'
+      ? (Math.random() > 0.5 ? 'white' : 'black')
+      : nextSettings.playerColor;
+    const payload: CreateGamePayload = {
+      white_player_id: selectedColor === 'white' ? PLAYER_ID : 'bot',
+      black_player_id: selectedColor === 'black' ? PLAYER_ID : 'bot',
+      opponent_type: nextSettings.opponentType,
+      bot_skill_level: nextSettings.botSkillLevel,
+      time_control_seconds: nextSettings.timeControlSeconds,
     };
-    setMoves((prev) => [...prev, newMove]);
+    try {
+      const created = await createGame(payload);
+      setSettings({ ...nextSettings, playerColor: selectedColor });
+      setGame(created);
+      setMoves(toMoves(created));
+      setClocks({ white: nextSettings.timeControlSeconds ?? 600, black: nextSettings.timeControlSeconds ?? 600 });
+      setOrientation(selectedColor);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to start game');
+    } finally {
+      setBusy(false);
+    }
+  }, [settings]);
+
+  useEffect(() => { void startGame(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleMove = async (uci: string) => {
+    if (!game || busy || gameOver || !isHumanTurn) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await makeMove(game.game_id, {
+        move: uci,
+        player_id: PLAYER_ID,
+        expected_version: game.version,
+      });
+      setGame(updated);
+      setMoves(toMoves(updated));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Move rejected');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const resetBoard = () => {
-    setFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-    setMoves([]);
-    setEvalScore(20);
-    setMateIn(null);
+  const handleResign = async () => {
+    if (!game || gameOver || busy) return;
+    setBusy(true);
+    try {
+      const updated = await resignGame(game.game_id, PLAYER_ID);
+      setGame(updated);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to resign');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const statusLabel = gameOver ? (game?.winner === 'draw' ? 'Draw' : `${game?.winner === playerColor ? 'Victory' : 'Game over'}`) : (isHumanTurn ? 'Your turn' : 'Opponent thinking');
+  const movePairs = useMemo(() => Array.from({ length: Math.ceil(moves.length / 2) }, (_, index) => ({
+    number: index + 1,
+    white: moves[index * 2],
+    black: moves[index * 2 + 1],
+  })), [moves]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-900 text-slate-100">
-      <Header status={backendStatus} />
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand"><div className="brand-mark"><Swords size={19} /></div><div><strong>Endgame</strong><span>Chess studio</span></div></div>
+        <div className="topbar-status"><span className={`status-dot ${backendStatus}`} /> Backend {backendStatus}<span className="topbar-divider" /> <span className="live-label"><Activity size={13} /> LIVE SESSION</span></div>
+      </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 flex flex-col gap-6">
-        {/* Banner highlighting the core engineering decision */}
-        <div className="bg-gradient-to-r from-indigo-950/80 via-slate-800 to-slate-900 border border-indigo-700/40 rounded-xl p-4 flex items-center justify-between shadow-lg">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-lg">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-white">
-                Core Architectural Rule Enforced
-              </h2>
-              <p className="text-xs text-slate-300">
-                Stockfish is the single authority for calculations & evaluations; LLM is responsible solely for teaching & explanations.
-              </p>
-            </div>
+      <main className="game-layout">
+        <section className="game-column">
+          <div className="page-heading"><div><p className="eyebrow">PLAY ARENA</p><h1>Make your move.</h1><p className="subheading">A focused board for thoughtful games.</p></div><button className="icon-button" title="Game settings"><Settings2 size={18} /></button></div>
+          <div className="player-strip"><div className="player"><span className="avatar avatar-dark">♟</span><div><strong>Endgame AI</strong><span>{settings.opponentType === 'random' ? 'Casual opponent' : `${settings.opponentType} · level ${settings.botSkillLevel}`}</span></div></div><span className="turn-status">{statusLabel}</span></div>
+          <div className="board-wrap">
+            <div className="clock-row"><div className={`clock ${game?.turn === 'black' ? 'clock-active' : ''}`}><span>BLACK</span><strong>{formatClock(clocks.black)}</strong></div><span className="round-label">GAME {game ? game.version + 1 : '—'}</span></div>
+            {game ? <ChessBoard fen={game.fen} orientation={orientation} disabled={busy || gameOver || !isHumanTurn} lastMove={lastMove?.uci} onMove={handleMove} /> : <div className="board-loading"><Loader2 className="spin" /> Preparing board</div>}
+            <div className="clock-row clock-row-bottom"><div className={`clock ${game?.turn === 'white' ? 'clock-active' : ''}`}><span>YOU · {playerColor.toUpperCase()}</span><strong>{formatClock(clocks.white)}</strong></div><span className="connection-note"><Shield size={13} /> moves sync automatically</span></div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={resetBoard}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition"
-            >
-              <RotateCcw className="w-3.5 h-3.5" /> Reset Game
-            </button>
-          </div>
-        </div>
+          <div className="board-controls"><button onClick={() => setOrientation((value) => value === 'white' ? 'black' : 'white')}><FlipHorizontal size={16} /> Flip board</button><button onClick={handleResign} disabled={!game || gameOver || busy}><Flag size={16} /> Resign</button><button onClick={() => void startGame()} disabled={busy}><RotateCcw size={16} /> New game</button></div>
+        </section>
 
-        {/* Interactive Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Evaluation Bar + Chessboard */}
-          <div className="lg:col-span-8 flex flex-col md:flex-row items-center justify-center gap-4 bg-slate-850 p-6 rounded-2xl border border-slate-750 shadow-xl">
-            <EvalBar centipawns={evalScore} mateIn={mateIn} />
-            <div className="flex flex-col items-center gap-4">
-              <ChessBoard fen={fen} onMove={handleMove} />
-              
-              {/* Move history list strip */}
-              <div className="w-full max-w-[480px] bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/60 flex items-center gap-2 overflow-x-auto text-xs font-mono">
-                <span className="text-slate-400 font-sans font-medium">Moves:</span>
-                {moves.length === 0 && <span className="text-slate-500 italic">No moves yet</span>}
-                {moves.map((m, idx) => (
-                  <span
-                    key={m.move_id}
-                    className="px-2 py-0.5 rounded bg-slate-700 text-slate-200 border border-slate-600"
-                  >
-                    {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}. ` : ''}{m.san}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: AI Tutor Chat */}
-          <div className="lg:col-span-4 flex justify-center">
-            <TutorCoach
-              currentFen={fen}
-              lastMoveSan={moves[moves.length - 1]?.san}
-              centipawns={evalScore}
-            />
-          </div>
-        </div>
+        <aside className="side-column">
+          <div className="panel game-setup"><div className="panel-title"><span><Sparkles size={16} /> GAME SETUP</span><span className={`mini-status ${backendStatus}`} /></div><label>Opponent<select value={settings.opponentType} onChange={(event) => setSettings({ ...settings, opponentType: event.target.value as OpponentType })}><option value="random">Random bot</option><option value="stockfish">Stockfish engine</option><option value="human">Local human</option></select><ChevronDown className="select-chevron" size={15} /></label><label>Play as<select value={settings.playerColor} onChange={(event) => setSettings({ ...settings, playerColor: event.target.value as GameSettings['playerColor'] })}><option value="white">White</option><option value="black">Black</option><option value="random">Random side</option></select><ChevronDown className="select-chevron" size={15} /></label><label>Time control<select value={settings.timeControlSeconds ?? 0} onChange={(event) => setSettings({ ...settings, timeControlSeconds: Number(event.target.value) || null })}><option value={600}>10 min</option><option value={300}>5 min</option><option value={60}>1 min</option><option value={0}>Unlimited</option></select><ChevronDown className="select-chevron" size={15} /></label><button className="primary-button" onClick={() => void startGame()} disabled={busy}><Trophy size={16} /> Start new game</button></div>
+          <div className="panel history-panel"><div className="panel-title"><span><TimerReset size={16} /> MOVE HISTORY</span><span className="move-count">{moves.length} moves</span></div><div className="history-list">{movePairs.length === 0 && <div className="empty-history">Your game moves will appear here.</div>}{movePairs.map((pair) => <div className="history-row" key={pair.number}><span className="move-number">{pair.number}.</span><span className={pair.white?.color === playerColor ? 'your-move' : ''}>{pair.white?.san ?? '—'}</span><span className={pair.black?.color === playerColor ? 'your-move' : ''}>{pair.black?.san ?? '—'}</span></div>)}</div></div>
+          <div className="panel note-panel"><div className="note-icon"><Sparkles size={16} /></div><div><strong>Play the position</strong><p>Choose a piece, then choose its destination. Legal moves are checked by the backend.</p></div></div>
+        </aside>
       </main>
+      {error && <div className="error-toast"><X size={16} /><span>{error}</span><button onClick={() => setError(null)}>Dismiss</button></div>}
     </div>
   );
 };

@@ -71,3 +71,20 @@ def test_make_illegal_move_returns_422(client: TestClient) -> None:
     assert response.status_code == 422
     assert response.json()["error"] == "ILLEGAL_MOVE"
 
+
+def test_resign_game_api(client: TestClient) -> None:
+    create_resp = client.post(
+        "/api/v1/games/",
+        json={"white_player_id": "alice", "black_player_id": "bot", "opponent_type": "random"},
+    )
+    game_id = create_resp.json()["game_id"]
+
+    resign_resp = client.post(
+        f"/api/v1/games/{game_id}/resign",
+        json={"player_id": "alice"},
+    )
+    assert resign_resp.status_code == 200
+    data = resign_resp.json()
+    assert data["status"] == "resigned"
+    assert data["winner"] == "black"
+

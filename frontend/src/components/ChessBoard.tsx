@@ -1,117 +1,84 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Chess } from 'chess.js';
+import { ChessPiece } from './ChessPiece';
 
 interface ChessBoardProps {
   fen: string;
-  onMove?: (uci: string, san: string) => void;
-  orientation?: 'white' | 'black';
+  orientation: 'white' | 'black';
+  disabled?: boolean;
+  lastMove?: string;
+  onMove: (uci: string) => void;
 }
-
-const PIECE_UNICODE: Record<string, string> = {
-  p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚',
-  P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔'
-};
 
 export const ChessBoard: React.FC<ChessBoardProps> = ({
   fen,
+  orientation,
+  disabled = false,
+  lastMove,
   onMove,
-  orientation = 'white'
 }) => {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const chess = useMemo(() => new Chess(fen), [fen]);
 
-  const chess = new Chess(fen);
-  const board = chess.board();
-
-  const handleSquareClick = (squareName: string) => {
-    if (!selectedSquare) {
-      // Pick piece if it belongs to current player's turn
-      const piece = chess.get(squareName as any);
-      if (piece && piece.color === chess.turn()) {
-        setSelectedSquare(squareName);
-      }
-      return;
-    }
-
-    if (selectedSquare === squareName) {
-      setSelectedSquare(null);
-      return;
-    }
-
-    // Try making a move
-    try {
-      const move = chess.move({
-        from: selectedSquare,
-        to: squareName,
-        promotion: 'q',
-      });
-
-      if (move && onMove) {
-        onMove(move.lan, move.san);
-      }
-      setSelectedSquare(null);
-    } catch {
-      // If clicked another piece of same color, reselect
-      const piece = chess.get(squareName as any);
-      if (piece && piece.color === chess.turn()) {
-        setSelectedSquare(squareName);
-      } else {
-        setSelectedSquare(null);
-      }
-    }
-  };
+  useEffect(() => setSelectedSquare(null), [fen]);
 
   const ranks = orientation === 'white' ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
   const files = orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
 
-  return (
-    <div className="relative p-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700">
-      <div className="grid grid-cols-8 grid-rows-8 w-[480px] h-[480px] border border-slate-600 rounded-lg overflow-hidden select-none">
-        {ranks.map((rankIdx) =>
-          files.map((fileIdx) => {
-            const squareName = `${String.fromCharCode(97 + fileIdx)}${rankIdx + 1}`;
-            const isLight = (rankIdx + fileIdx) % 2 !== 0;
-            const piece = board[7 - rankIdx][fileIdx];
-            const isSelected = selectedSquare === squareName;
+  const handleSquareClick = (square: string) => {
+    if (disabled) return;
+    const piece = chess.get(square as never);
 
-            let bgColor = isLight ? 'bg-[#eeeed2]' : 'bg-[#769656]';
-            if (isSelected) {
-              bgColor = 'bg-amber-300 ring-2 ring-amber-500 ring-inset';
-            }
+    if (!selectedSquare) {
+      if (piece?.color === chess.turn()) setSelectedSquare(square);
+      return;
+    }
+
+    if (selectedSquare === square) {
+      setSelectedSquare(null);
+      return;
+    }
+
+    try {
+      const move = chess.move({ from: selectedSquare, to: square, promotion: 'q' });
+      setSelectedSquare(null);
+      onMove(move.lan);
+    } catch {
+      if (piece?.color === chess.turn()) setSelectedSquare(square);
+      else setSelectedSquare(null);
+    }
+  };
+
+  return (
+    <div className="board-frame">
+      <div className="chess-board" role="grid" aria-label="Interactive chess board">
+        {ranks.map((rank) =>
+          files.map((file) => {
+            const square = `${String.fromCharCode(97 + file)}${rank + 1}`;
+            const boardPiece = chess.board()[7 - rank][file];
+            const selected = selectedSquare === square;
+            const inLastMove = lastMove?.slice(0, 2) === square || lastMove?.slice(2, 4) === square;
+            const light = (rank + file) % 2 !== 0;
+            const showRank = file === (orientation === 'white' ? 0 : 7);
+            const showFile = rank === (orientation === 'white' ? 0 : 7);
 
             return (
-              <div
-                key={squareName}
-                onClick={() => handleSquareClick(squareName)}
-                className={`relative flex items-center justify-center cursor-pointer ${bgColor} transition-colors duration-150`}
+              <button
+                type="button"
+                role="gridcell"
+                key={square}
+                aria-label={`${square}${boardPiece ? ` ${boardPiece.color === 'w' ? 'white' : 'black'} ${boardPiece.type}` : ''}`}
+                onClick={() => handleSquareClick(square)}
+                className={`board-square ${light ? 'board-square-light' : 'board-square-dark'} ${selected ? 'board-square-selected' : ''} ${inLastMove ? 'board-square-last' : ''}`}
               >
-                {/* Board coordinates indicator */}
-                {fileIdx === (orientation === 'white' ? 0 : 7) && (
-                  <span className={`absolute top-0.5 left-1 text-[10px] font-bold ${isLight ? 'text-[#769656]' : 'text-[#eeeed2]'}`}>
-                    {rankIdx + 1}
-                  </span>
-                )}
-                {rankIdx === (orientation === 'white' ? 0 : 7) && (
-                  <span className={`absolute bottom-0.5 right-1 text-[10px] font-bold ${isLight ? 'text-[#769656]' : 'text-[#eeeed2]'}`}>
-                    {String.fromCharCode(97 + fileIdx)}
-                  </span>
-                )}
-
-                {/* Piece glyph */}
-                {piece && (
-                  <span
-                    className={`text-4xl drop-shadow-sm transition-transform active:scale-95 ${
-                      piece.color === 'w' ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-slate-900'
-                    }`}
-                  >
-                    {PIECE_UNICODE[piece.color === 'w' ? piece.type.toUpperCase() : piece.type]}
-                  </span>
-                )}
-              </div>
+                {showRank && <span className="board-coordinate board-rank">{rank + 1}</span>}
+                {showFile && <span className="board-coordinate board-file">{String.fromCharCode(97 + file)}</span>}
+                {boardPiece && <ChessPiece color={boardPiece.color} type={boardPiece.type} />}
+              </button>
             );
-          })
+          }),
         )}
       </div>
     </div>
   );
 };
-

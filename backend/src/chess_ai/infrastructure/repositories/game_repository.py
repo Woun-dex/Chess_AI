@@ -53,6 +53,9 @@ class SqlAlchemyGameRepository(GameRepositoryPort):
         # Sync scalar fields
         db_game.white_player_id = game.white_player_id
         db_game.black_player_id = game.black_player_id if game.black_player_id != "bot" else None
+        db_game.opponent_type = game.opponent_type
+        db_game.bot_skill_level = game.bot_skill_level
+        db_game.time_control_seconds = game.time_control_seconds
         db_game.status = game.status.value
         db_game.winner_color = game.winner.value if game.winner else None
         db_game.version = game.version
@@ -101,6 +104,9 @@ class SqlAlchemyGameRepository(GameRepositoryPort):
             game_id=db_game.id,
             white_player_id=db_game.white_player_id,
             black_player_id=db_game.black_player_id or "bot",
+            opponent_type=db_game.opponent_type,
+            bot_skill_level=db_game.bot_skill_level if db_game.bot_skill_level is not None else 10,
+            time_control_seconds=db_game.time_control_seconds,
             status=GameStatus(db_game.status),
             winner=Color(db_game.winner_color) if db_game.winner_color and db_game.winner_color != "draw" else None,
             moves=moves,

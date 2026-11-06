@@ -24,6 +24,12 @@ class MakeMoveCommand:
 
 
 @dataclass(frozen=True)
+class ResignGameCommand:
+    game_id: str
+    player_id: str
+
+
+@dataclass(frozen=True)
 class RequestAnalysisCommand:
     game_id: str
     requested_by: str

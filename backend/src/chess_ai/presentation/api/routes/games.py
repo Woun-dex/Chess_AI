@@ -7,10 +7,13 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
-from chess_ai.application.commands.game_commands import CreateGameCommand, MakeMoveCommand
+from chess_ai.application.commands.game_commands import (
+    CreateGameCommand,
+    MakeMoveCommand,
+    ResignGameCommand,
+)
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
 from chess_ai.domain.models.game import Game
-from chess_ai.infrastructure.engine.opponent_strategy import BotOpponentFactory
 from chess_ai.infrastructure.unit_of_work import InMemoryUnitOfWork
 
 router = APIRouter(prefix="/api/v1/games", tags=["Games"])
@@ -41,6 +44,10 @@ class MakeMoveRequest(BaseModel):
     expected_version: int = Field(..., description="Current game version for optimistic concurrency")
 
 
+class ResignGameRequest(BaseModel):
+    player_id: str = "player1"
+
+
 class MoveResponse(BaseModel):
     move_id: str
     uci: str
@@ -57,6 +64,9 @@ class GameResponse(BaseModel):
     version: int
     white_player_id: str
     black_player_id: str
+    opponent_type: str
+    bot_skill_level: int
+    time_control_seconds: int | None
     winner: str | None
     moves: list[MoveResponse]
 
@@ -70,6 +80,9 @@ class GameResponse(BaseModel):
             version=game.version,
             white_player_id=game.white_player_id,
             black_player_id=game.black_player_id,
+            opponent_type=game.opponent_type,
+            bot_skill_level=game.bot_skill_level,
+            time_control_seconds=game.time_control_seconds,
             winner=game.winner.value if game.winner else None,
             moves=[
                 MoveResponse(
@@ -90,9 +103,8 @@ class GameResponse(BaseModel):
 
 
 def get_game_use_case() -> GameUseCase:
-    """Return a GameUseCase backed by the shared in-memory store."""
-    strategy = BotOpponentFactory.create("random")  # Random bot until Stockfish is wired
-    return GameUseCase(uow=_shared_uow, opponent_strategy=strategy)
+    """Return a GameUseCase backed by the shared in-memory store with dynamic strategy resolution."""
+    return GameUseCase(uow=_shared_uow, opponent_strategy=None)
 
 
 # ---------------------------------------------------------------------------
@@ -143,4 +155,15 @@ async def make_move(
         idempotency_key=idempotency_key or str(uuid.uuid4()),
     )
     game = await use_case.make_move(cmd)
+    return GameResponse.from_domain(game)
+
+
+@router.post("/{game_id}/resign", response_model=GameResponse, status_code=status.HTTP_200_OK)
+async def resign_game(
+    game_id: str,
+    request: ResignGameRequest,
+    use_case: GameUseCase = Depends(get_game_use_case),
+) -> GameResponse:
+    cmd = ResignGameCommand(game_id=game_id, player_id=request.player_id)
+    game = await use_case.resign_game(cmd)
     return GameResponse.from_domain(game)

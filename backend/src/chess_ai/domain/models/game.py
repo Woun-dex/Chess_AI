@@ -55,6 +55,9 @@ class Game:
     game_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     white_player_id: str = "human"
     black_player_id: str = "bot"
+    opponent_type: str = "stockfish"
+    bot_skill_level: int = 10
+    time_control_seconds: int | None = None
     status: GameStatus = GameStatus.IN_PROGRESS
     winner: Color | None = None
     moves: list[MoveRecord] = field(default_factory=list)
