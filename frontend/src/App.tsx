@@ -4,11 +4,11 @@ import {
   Shield, Sparkles, Swords, TimerReset, Trophy, X,
 } from 'lucide-react';
 import { ChessBoard } from './components/ChessBoard';
-import { checkBackendHealth, createGame, makeMove, resignGame } from './services/api';
-import { CreateGamePayload, GameResponse, GameSettings, MoveRecord, OpponentType } from './types/chess';
+import { AuthPanel } from './components/AuthPanel';
+import { checkBackendHealth, clearAccessToken, createGame, getAccessToken, getCurrentUser, makeMove, resignGame } from './services/api';
+import { CreateGamePayload, GameResponse, GameSettings, MoveRecord, OpponentType, User } from './types/chess';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-const PLAYER_ID = 'player1';
 const formatClock = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
 const defaultSettings: GameSettings = {
@@ -35,6 +35,8 @@ export const App: React.FC = () => {
   const [backendStatus, setBackendStatus] = useState('connecting');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const playerColor = settings.playerColor === 'random' ? 'white' : settings.playerColor;
   const isHumanTurn = game && game.turn === playerColor;
@@ -43,6 +45,14 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     checkBackendHealth().then(() => setBackendStatus('online')).catch(() => setBackendStatus('offline'));
+    if (!getAccessToken()) {
+      setAuthLoading(false);
+      return;
+    }
+    getCurrentUser()
+      .then(setUser)
+      .catch(() => clearAccessToken())
+      .finally(() => setAuthLoading(false));
   }, []);
 
   useEffect(() => {
@@ -54,14 +64,15 @@ export const App: React.FC = () => {
   }, [game, gameOver, settings.timeControlSeconds]);
 
   const startGame = useCallback(async (nextSettings = settings) => {
+    if (!user) return;
     setBusy(true);
     setError(null);
     const selectedColor = nextSettings.playerColor === 'random'
       ? (Math.random() > 0.5 ? 'white' : 'black')
       : nextSettings.playerColor;
     const payload: CreateGamePayload = {
-      white_player_id: selectedColor === 'white' ? PLAYER_ID : 'bot',
-      black_player_id: selectedColor === 'black' ? PLAYER_ID : 'bot',
+      white_player_id: selectedColor === 'white' ? user.id : 'bot',
+      black_player_id: selectedColor === 'black' ? user.id : 'bot',
       opponent_type: nextSettings.opponentType,
       bot_skill_level: nextSettings.botSkillLevel,
       time_control_seconds: nextSettings.timeControlSeconds,
@@ -78,18 +89,18 @@ export const App: React.FC = () => {
     } finally {
       setBusy(false);
     }
-  }, [settings]);
+  }, [settings, user]);
 
-  useEffect(() => { void startGame(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (user) void startGame(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMove = async (uci: string) => {
-    if (!game || busy || gameOver || !isHumanTurn) return;
+    if (!user || !game || busy || gameOver || !isHumanTurn) return;
     setBusy(true);
     setError(null);
     try {
       const updated = await makeMove(game.game_id, {
         move: uci,
-        player_id: PLAYER_ID,
+        player_id: user.id,
         expected_version: game.version,
       });
       setGame(updated);
@@ -102,10 +113,10 @@ export const App: React.FC = () => {
   };
 
   const handleResign = async () => {
-    if (!game || gameOver || busy) return;
+    if (!user || !game || gameOver || busy) return;
     setBusy(true);
     try {
-      const updated = await resignGame(game.game_id, PLAYER_ID);
+      const updated = await resignGame(game.game_id, user.id);
       setGame(updated);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to resign');
@@ -121,11 +132,18 @@ export const App: React.FC = () => {
     black: moves[index * 2 + 1],
   })), [moves]);
 
+  if (authLoading) {
+    return <main className="auth-page"><Loader2 className="spin" size={22} /></main>;
+  }
+  if (!user) {
+    return <AuthPanel onAuthenticated={setUser} />;
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><div className="brand-mark"><Swords size={19} /></div><div><strong>Endgame</strong><span>Chess studio</span></div></div>
-        <div className="topbar-status"><span className={`status-dot ${backendStatus}`} /> Backend {backendStatus}<span className="topbar-divider" /> <span className="live-label"><Activity size={13} /> LIVE SESSION</span></div>
+        <div className="topbar-status"><span className={`status-dot ${backendStatus}`} /> Backend {backendStatus}<span className="topbar-divider" /> <span className="live-label"><Activity size={13} /> {user?.username}<button className="logout-button" onClick={() => { clearAccessToken(); setUser(null); setGame(null); }}>Sign out</button></span></div>
       </header>
 
       <main className="game-layout">

@@ -92,3 +92,32 @@ export interface GameSettings {
   botSkillLevel: number;
   timeControlSeconds: number | null;
 }
+
+export interface UserProfile {
+  id: string;
+  user_id: string;
+  preferred_color: Color;
+  classical_rating: number;
+  blitz_rating: number;
+  rapid_rating: number;
+  games_played: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  favorite_opening_as_white: string | null;
+  favorite_opening_as_black: string | null;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  is_active: boolean;
+  profile: UserProfile;
+}
+
+export interface AuthToken {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}

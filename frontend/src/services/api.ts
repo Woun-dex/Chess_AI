@@ -1,4 +1,4 @@
-import { CreateGamePayload, GameResponse, MakeMovePayload } from '../types/chess';
+import { AuthToken, CreateGamePayload, GameResponse, MakeMovePayload, User } from '../types/chess';
 
 export interface HealthResponse {
   status: string;
@@ -7,6 +7,55 @@ export interface HealthResponse {
 }
 
 export const API_BASE = '/api/v1';
+const TOKEN_KEY = 'chess-ai-access-token';
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function saveAccessToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearAccessToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+function authHeaders(): HeadersInit {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function errorMessage(response: Response, fallback: string): Promise<string> {
+  const errorData = await response.json().catch(() => ({}));
+  return errorData.message || errorData.detail || fallback;
+}
+
+export async function login(email: string, password: string): Promise<AuthToken> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to sign in'));
+  return response.json();
+}
+
+export async function register(email: string, username: string, password: string): Promise<User> {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, username, password }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to create account'));
+  return response.json();
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const response = await fetch(`${API_BASE}/users/me`, { headers: authHeaders() });
+  if (!response.ok) throw new Error(await errorMessage(response, 'Your session has expired'));
+  return response.json();
+}
 
 export async function checkBackendHealth(): Promise<HealthResponse> {
   const response = await fetch('/health');
@@ -21,6 +70,7 @@ export async function createGame(payload: CreateGamePayload): Promise<GameRespon
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -42,6 +92,7 @@ export async function makeMove(
     headers: {
       'Content-Type': 'application/json',
       'Idempotency-Key': `${gameId}-${payload.expected_version}-${payload.move}`,
+      ...authHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -55,7 +106,7 @@ export async function makeMove(
 }
 
 export async function getGame(gameId: string): Promise<GameResponse> {
-  const response = await fetch(`${API_BASE}/games/${gameId}`);
+  const response = await fetch(`${API_BASE}/games/${gameId}`, { headers: authHeaders() });
   if (!response.ok) {
     throw new Error(`Failed to retrieve game (${response.status})`);
   }
@@ -70,6 +121,7 @@ export async function resignGame(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders(),
     },
     body: JSON.stringify({ player_id: playerId }),
   });
