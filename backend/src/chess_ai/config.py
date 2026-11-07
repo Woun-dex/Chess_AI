@@ -47,9 +47,10 @@ class Settings(BaseSettings):
     STOCKFISH_MAX_CONCURRENT_ENGINES: int = 4
 
     # LLM Tutor Provider
-    LLM_PROVIDER: Literal["gemini", "openai", "anthropic", "mock"] = "mock"
+    LLM_PROVIDER: Literal["gemini", "openai", "anthropic", "ollama", "mock"] = "mock"
     LLM_API_KEY: str = ""
     LLM_MODEL_NAME: str = "gemini-1.5-pro"
+    LLM_BASE_URL: str = "http://localhost:11434"
 
     # CORS
     CORS_ORIGINS: list[str] = [

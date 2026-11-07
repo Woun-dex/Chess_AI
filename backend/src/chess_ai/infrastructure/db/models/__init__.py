@@ -16,6 +16,7 @@ from chess_ai.infrastructure.db.models.lesson import (
 from chess_ai.infrastructure.db.models.move_analysis import MoveAnalysisModel
 from chess_ai.infrastructure.db.models.outbox import OutboxEventModel
 from chess_ai.infrastructure.db.models.player_profile import PlayerProfileModel
+from chess_ai.infrastructure.db.models.tutor_checkpoint import TutorCheckpointModel
 from chess_ai.infrastructure.db.models.tutor_session import TutorMessageModel, TutorSessionModel
 from chess_ai.infrastructure.db.models.user import UserModel
 
@@ -32,6 +33,7 @@ __all__ = [
     "PlayerProfileModel",
     "TrainingPlanItemModel",
     "TrainingPlanModel",
+    "TutorCheckpointModel",
     "TutorMessageModel",
     "TutorSessionModel",
     "UserModel",

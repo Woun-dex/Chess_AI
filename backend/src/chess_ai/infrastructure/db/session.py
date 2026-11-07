@@ -31,6 +31,7 @@ def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
 # Module-level singletons (lazy initialised on first import)
 # ---------------------------------------------------------------------------
 
+
 def _make_default_engine() -> AsyncEngine:
     return build_engine(get_settings().DATABASE_URL)
 

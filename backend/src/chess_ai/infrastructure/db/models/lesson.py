@@ -126,6 +126,4 @@ class ExerciseAttemptModel(Base):
     )
 
     # Relationships
-    exercise: Mapped["ExerciseModel"] = relationship(
-        "ExerciseModel", back_populates="attempts"
-    )
+    exercise: Mapped["ExerciseModel"] = relationship("ExerciseModel", back_populates="attempts")

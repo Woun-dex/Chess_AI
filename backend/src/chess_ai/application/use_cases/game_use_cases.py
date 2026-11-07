@@ -98,9 +98,7 @@ class GameUseCase:
                 raise ValueError(f"Game {cmd.game_id} not found")
 
             # Determine player color
-            player_color = (
-                Color.WHITE if cmd.player_id == game.white_player_id else Color.BLACK
-            )
+            player_color = Color.WHITE if cmd.player_id == game.white_player_id else Color.BLACK
             game.resign(player_color)
 
             await uow.games.save(game)

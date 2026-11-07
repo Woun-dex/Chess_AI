@@ -23,9 +23,7 @@ class SqlAlchemyGameRepository(GameRepositoryPort):
     async def get_by_id(self, game_id: str) -> Game | None:
         """Load a game aggregate (with moves) by its primary key."""
         result = await self._session.execute(
-            select(GameModel)
-            .where(GameModel.id == game_id)
-            .options(selectinload(GameModel.moves))
+            select(GameModel).where(GameModel.id == game_id).options(selectinload(GameModel.moves))
         )
         db_game = result.scalar_one_or_none()
         if db_game is None:
@@ -108,7 +106,9 @@ class SqlAlchemyGameRepository(GameRepositoryPort):
             bot_skill_level=db_game.bot_skill_level if db_game.bot_skill_level is not None else 10,
             time_control_seconds=db_game.time_control_seconds,
             status=GameStatus(db_game.status),
-            winner=Color(db_game.winner_color) if db_game.winner_color and db_game.winner_color != "draw" else None,
+            winner=Color(db_game.winner_color)
+            if db_game.winner_color and db_game.winner_color != "draw"
+            else None,
             moves=moves,
             version=db_game.version,
             created_at=db_game.created_at,

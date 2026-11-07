@@ -41,12 +41,17 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/tests:/app/tests
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/chess_ai
       - REDIS_URL=redis://redis:6379/0
       - STOCKFISH_PATH=/usr/games/stockfish
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL_NAME=gemma2:9b
+      - LLM_BASE_URL=http://host.docker.internal:11434
       - APP_ENV=development
       - DEBUG=True
     depends_on:
@@ -68,7 +73,12 @@ services:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/chess_ai
       - REDIS_URL=redis://redis:6379/0
       - STOCKFISH_PATH=/usr/games/stockfish
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL_NAME=gemma2:9b
+      - LLM_BASE_URL=http://host.docker.internal:11434
       - APP_ENV=development
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,4 +104,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-

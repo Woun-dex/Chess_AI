@@ -37,8 +37,12 @@ def upgrade() -> None:
         sa.Column("hashed_password", sa.String(255), nullable=False),
         sa.Column("username", sa.String(50), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email", name="uq_users_email"),
         sa.UniqueConstraint("username", name="uq_users_username"),
@@ -63,8 +67,12 @@ def upgrade() -> None:
         sa.Column("draws", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("favorite_opening_as_white", sa.String(100), nullable=True),
         sa.Column("favorite_opening_as_black", sa.String(100), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", name="uq_player_profiles_user_id"),
@@ -93,8 +101,12 @@ def upgrade() -> None:
         ),
         sa.Column("pgn", sa.Text(), nullable=True),
         sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["white_player_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["black_player_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
@@ -120,7 +132,9 @@ def upgrade() -> None:
         sa.Column("time_spent_ms", sa.Integer(), nullable=True),
         sa.Column("clock_remaining_ms", sa.Integer(), nullable=True),
         sa.Column("is_in_check", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("played_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "played_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["game_id"], ["games.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("game_id", "move_number", name="uq_game_moves_game_move_number"),
@@ -156,8 +170,12 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("idempotency_key", sa.String(100), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["game_id"], ["games.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("game_id", name="uq_game_analyses_game_id"),
@@ -182,8 +200,18 @@ def upgrade() -> None:
         sa.Column("mate_in_before", sa.Integer(), nullable=True),
         sa.Column("mate_in_after", sa.Integer(), nullable=True),
         sa.Column("best_move_uci", sa.String(10), nullable=False),
-        sa.Column("principal_variation", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"),
-        sa.Column("tactical_motifs", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="[]"),
+        sa.Column(
+            "principal_variation",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default="[]",
+        ),
+        sa.Column(
+            "tactical_motifs",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default="[]",
+        ),
         sa.ForeignKeyConstraint(["game_analysis_id"], ["game_analyses.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["game_move_id"], ["game_moves.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -205,8 +233,12 @@ def upgrade() -> None:
         sa.Column("content_markdown", sa.Text(), nullable=False, server_default=""),
         sa.Column("pgn_examples", sa.Text(), nullable=True),
         sa.Column("is_published", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_lessons_concept_key", "lessons", ["concept_key"])
@@ -228,7 +260,9 @@ def upgrade() -> None:
         sa.Column("difficulty_level", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("concept_key", sa.String(100), nullable=False),
         sa.Column("is_published", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["lesson_id"], ["lessons.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -247,7 +281,9 @@ def upgrade() -> None:
         sa.Column("submitted_move_uci", sa.String(10), nullable=False),
         sa.Column("is_correct", sa.Boolean(), nullable=False),
         sa.Column("time_spent_ms", sa.Integer(), nullable=True),
-        sa.Column("attempted_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "attempted_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["exercise_id"], ["exercises.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -269,14 +305,18 @@ def upgrade() -> None:
         sa.Column("correct_attempts", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("total_attempts", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("last_practiced_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id", "concept_key", name="uq_learning_profiles_user_concept"),
     )
     op.create_index("ix_learning_profiles_user_id", "learning_profiles", ["user_id"])
     op.create_index("ix_learning_profiles_concept_key", "learning_profiles", ["concept_key"])
-    op.create_index("ix_learning_profiles_last_practiced_at", "learning_profiles", ["last_practiced_at"])
+    op.create_index(
+        "ix_learning_profiles_last_practiced_at", "learning_profiles", ["last_practiced_at"]
+    )
 
     # -----------------------------------------------------------------------
     # training_plans
@@ -286,7 +326,9 @@ def upgrade() -> None:
         sa.Column("id", sa.String(36), server_default=PK_DEFAULT, nullable=False),
         sa.Column("user_id", sa.String(36), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("generated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "generated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("valid_until", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -322,8 +364,12 @@ def upgrade() -> None:
         sa.Column("game_id", sa.String(36), nullable=True),
         sa.Column("session_title", sa.String(255), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["game_id"], ["games.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
@@ -343,7 +389,9 @@ def upgrade() -> None:
         sa.Column("fen_context", sa.String(100), nullable=True),
         sa.Column("move_context_uci", sa.String(10), nullable=True),
         sa.Column("token_count", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.ForeignKeyConstraint(["session_id"], ["tutor_sessions.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
@@ -359,10 +407,14 @@ def upgrade() -> None:
         sa.Column("event_type", sa.String(100), nullable=False),
         sa.Column("aggregate_id", sa.String(36), nullable=False),
         sa.Column("aggregate_type", sa.String(50), nullable=False),
-        sa.Column("payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="{}"),
+        sa.Column(
+            "payload", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default="{}"
+        ),
         sa.Column("is_published", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_outbox_events_is_published", "outbox_events", ["is_published"])

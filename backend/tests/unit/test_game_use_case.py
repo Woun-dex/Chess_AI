@@ -58,4 +58,3 @@ async def test_make_move_triggers_bot_response() -> None:
     assert updated_game.moves[1].color == Color.BLACK
     assert updated_game.turn == Color.WHITE
     assert updated_game.version == 3
-

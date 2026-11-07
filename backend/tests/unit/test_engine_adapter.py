@@ -72,6 +72,15 @@ async def test_analyze_game_multiple_moves(engine: MockEngineAdapter) -> None:
 
 async def test_move_classification_values_exist() -> None:
     """Verify all expected MoveClassification members are present."""
-    expected = {"brilliant", "great", "best", "excellent", "good", "inaccuracy", "mistake", "blunder"}
+    expected = {
+        "brilliant",
+        "great",
+        "best",
+        "excellent",
+        "good",
+        "inaccuracy",
+        "mistake",
+        "blunder",
+    }
     actual = {c.value for c in MoveClassification}
     assert expected == actual

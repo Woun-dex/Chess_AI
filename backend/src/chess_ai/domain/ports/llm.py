@@ -23,6 +23,6 @@ class LLMPort(ABC):
         ...
 
     @abstractmethod
-    async def stream_explanation(self, context: TutorContext) -> AsyncIterator[str]:
+    def stream_explanation(self, context: TutorContext) -> AsyncIterator[str]:
         """Stream pedagogical coaching tokens in real-time."""
         ...

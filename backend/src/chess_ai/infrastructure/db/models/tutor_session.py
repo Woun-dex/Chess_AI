@@ -63,6 +63,9 @@ class TutorSessionModel(Base):
         cascade="all, delete-orphan",
         order_by="TutorMessageModel.created_at",
     )
+    checkpoints: Mapped[list["TutorCheckpointModel"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        "TutorCheckpointModel", back_populates="session", cascade="all, delete-orphan"
+    )
 
 
 class TutorMessageModel(Base):

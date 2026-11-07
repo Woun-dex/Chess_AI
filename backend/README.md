@@ -2,6 +2,21 @@
 
 Core FastAPI, SQLAlchemy 2.0, python-chess domain logic, and Stockfish/LLM integration.
 
+## Tutor
+
+The tutor graph supports local Ollama:
+
+```env
+LLM_PROVIDER=ollama
+LLM_MODEL_NAME=gemma2:9b
+LLM_BASE_URL=http://localhost:11434
+```
+
+Create a session with `POST /api/v1/tutor/sessions`, then send a message with
+`POST /api/v1/tutor/sessions/{session_id}/messages`. Use the `/stream` variant
+for Server-Sent Events. Messages and graph checkpoints are persisted in
+PostgreSQL; lesson context is retrieved from published lessons by concept.
+
 ## Authentication and profiles
 
 The API exposes:

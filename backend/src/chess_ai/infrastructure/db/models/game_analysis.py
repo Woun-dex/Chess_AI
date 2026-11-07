@@ -37,9 +37,7 @@ class GameAnalysisModel(Base):
         nullable=False,
         index=True,
     )
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=AnalysisStatus.PENDING
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=AnalysisStatus.PENDING)
     depth: Mapped[int] = mapped_column(Integer, nullable=False, default=18)
     total_moves_analyzed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

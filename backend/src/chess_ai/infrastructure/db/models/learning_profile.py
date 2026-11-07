@@ -47,7 +47,9 @@ class LearningProfileModel(Base):
     exposures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     correct_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_practiced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_practiced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )

@@ -17,9 +17,7 @@ TOKEN_TTL_SECONDS = 60 * 60 * 24
 def hash_password(password: str) -> str:
     """Hash a password with a per-password salt using PBKDF2-HMAC-SHA256."""
     salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode(), salt, PASSWORD_ITERATIONS
-    )
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PASSWORD_ITERATIONS)
     return f"pbkdf2_sha256${PASSWORD_ITERATIONS}${_encode(salt)}${_encode(digest)}"
 
 
@@ -52,9 +50,7 @@ def get_user_id_from_token(token: str, secret: str) -> str | None:
     """Validate a bearer token and return its subject."""
     try:
         encoded_payload, encoded_signature = token.split(".")
-        expected = hmac.new(
-            secret.encode(), encoded_payload.encode(), hashlib.sha256
-        ).digest()
+        expected = hmac.new(secret.encode(), encoded_payload.encode(), hashlib.sha256).digest()
         if not hmac.compare_digest(expected, _decode(encoded_signature)):
             return None
         payload = json.loads(_decode(encoded_payload))

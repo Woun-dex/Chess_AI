@@ -17,9 +17,7 @@ class UserService:
     async def get_current(self, user_id: str) -> UserModel | None:
         return await self._repository.get_by_id(user_id)
 
-    async def update_profile(
-        self, user_id: str, changes: dict[str, object]
-    ) -> PlayerProfileModel:
+    async def update_profile(self, user_id: str, changes: dict[str, object]) -> PlayerProfileModel:
         profile = await self._repository.get_profile(user_id)
         if profile is None:
             profile = await self._repository.create_profile(user_id)

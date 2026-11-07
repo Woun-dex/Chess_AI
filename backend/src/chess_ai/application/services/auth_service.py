@@ -21,9 +21,8 @@ class AuthService:
         self._settings = settings
 
     async def register(self, email: str, username: str, password: str) -> UserModel:
-        if (
-            await self._repository.get_by_email(email)
-            or await self._repository.get_by_username(username)
+        if await self._repository.get_by_email(email) or await self._repository.get_by_username(
+            username
         ):
             raise ValueError("Email or username already registered")
         user = await self._repository.create(

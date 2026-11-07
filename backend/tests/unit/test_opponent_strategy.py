@@ -39,4 +39,3 @@ def test_bot_opponent_factory_creates_random_bot() -> None:
 def test_bot_opponent_factory_rejects_unknown_bot() -> None:
     with pytest.raises(ValueError, match="Unknown opponent type"):
         BotOpponentFactory.create("unsupported_bot")
-

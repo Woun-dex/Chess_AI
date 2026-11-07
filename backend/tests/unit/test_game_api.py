@@ -87,4 +87,3 @@ def test_resign_game_api(client: TestClient) -> None:
     data = resign_resp.json()
     assert data["status"] == "resigned"
     assert data["winner"] == "black"
-

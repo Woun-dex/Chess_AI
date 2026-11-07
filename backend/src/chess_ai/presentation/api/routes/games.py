@@ -46,7 +46,9 @@ class CreateGameRequest(BaseModel):
 class MakeMoveRequest(BaseModel):
     move: str = Field(..., description="Move in UCI format (e.g. e2e4) or SAN (e.g. e4)")
     player_id: str = "player1"
-    expected_version: int = Field(..., description="Current game version for optimistic concurrency")
+    expected_version: int = Field(
+        ..., description="Current game version for optimistic concurrency"
+    )
 
 
 class ResignGameRequest(BaseModel):

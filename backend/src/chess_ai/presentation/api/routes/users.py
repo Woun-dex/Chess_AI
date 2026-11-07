@@ -22,7 +22,9 @@ router = APIRouter(prefix="/api/v1", tags=["Authentication", "Users"])
 
 def _to_user_response(user: UserModel) -> UserResponse:
     if user.player_profile is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User profile missing")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="User profile missing"
+        )
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -56,7 +58,9 @@ async def login(request: LoginRequest, session: Session) -> TokenResponse:
             request.email.lower(), request.password
         )
     except InvalidCredentialsError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials") from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        ) from exc
     return TokenResponse(access_token=token, expires_in=expires_in)
 
 

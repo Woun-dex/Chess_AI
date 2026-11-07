@@ -20,9 +20,7 @@ async def get_current_user(
 ) -> UserModel:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    user_id = get_user_id_from_token(
-        authorization[7:].strip(), get_settings().AUTH_SECRET
-    )
+    user_id = get_user_id_from_token(authorization[7:].strip(), get_settings().AUTH_SECRET)
     user = await UserService(session).get_current(user_id) if user_id else None
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access token")

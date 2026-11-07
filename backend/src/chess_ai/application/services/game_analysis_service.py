@@ -70,8 +70,7 @@ class GameAnalysisService:
             for color in (Color.WHITE.value, Color.BLACK.value)
         }
         accuracy = {
-            color: _accuracy(losses[color])
-            for color in (Color.WHITE.value, Color.BLACK.value)
+            color: _accuracy(losses[color]) for color in (Color.WHITE.value, Color.BLACK.value)
         }
         critical = [
             move.move_number
