@@ -24,7 +24,8 @@ jobs:
 
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: uv sync --dev
+        # Ruff is declared in the project's optional "dev" extra.
+        run: uv sync --extra dev
 
       - name: Ruff Linter & Formatter Check
         working-directory: ./backend
@@ -62,4 +63,3 @@ jobs:
       - name: TypeScript Compilation Check
         working-directory: ./frontend
         run: npm run build
-

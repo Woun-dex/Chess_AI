@@ -1,7 +1,7 @@
 import React, { FormEvent, useState } from 'react';
 import { Loader2, LogIn, UserPlus } from 'lucide-react';
-import { getCurrentUser, login, register, saveAccessToken } from '../services/api';
-import { User } from '../types/chess';
+import { getCurrentUser, login, register, saveAccessToken } from '../../services/api';
+import { User } from '../../types/chess';
 
 interface AuthPanelProps {
   onAuthenticated: (user: User) => void;
