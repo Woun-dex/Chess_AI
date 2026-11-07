@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
     AUTH_SECRET: str = Field(
         default="change-this-development-secret",
-        description="Secret used to sign access tokens; override in production",
+        min_length=16,
+        description="Secret used to sign access tokens; use a unique 32+ character value outside development",
     )
     ACCESS_TOKEN_EXPIRE_SECONDS: int = 86400
 
@@ -56,6 +57,15 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://127.0.0.1:5173",
     ]
+
+    @model_validator(mode="after")
+    def validate_auth_secret(self) -> "Settings":
+        if self.APP_ENV in {"staging", "production"}:
+            if self.AUTH_SECRET == "change-this-development-secret":
+                raise ValueError("AUTH_SECRET must be explicitly configured outside development")
+            if len(self.AUTH_SECRET) < 32:
+                raise ValueError("AUTH_SECRET must be at least 32 characters outside development")
+        return self
 
 
 @lru_cache
