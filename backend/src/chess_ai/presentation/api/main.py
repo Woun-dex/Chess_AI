@@ -63,8 +63,10 @@ def create_app() -> FastAPI:
 
     # Routers
     from chess_ai.presentation.api.routes.games import router as games_router
+    from chess_ai.presentation.api.routes.users import router as users_router
 
     app.include_router(games_router)
+    app.include_router(users_router)
 
     @app.get("/health", tags=["System"])
     async def health_check() -> dict[str, str]:

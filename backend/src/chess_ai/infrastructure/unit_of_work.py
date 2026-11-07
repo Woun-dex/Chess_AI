@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Self
 
 from chess_ai.domain.ports.repository import GameRepositoryPort
+from chess_ai.infrastructure.db.session import SessionFactory
 from chess_ai.infrastructure.repositories.game_repository import SqlAlchemyGameRepository
 from chess_ai.infrastructure.repositories.in_memory_game_repository import (
     InMemoryGameRepository,
@@ -48,6 +50,12 @@ class SqlAlchemyUnitOfWork:
         """Discard all pending changes."""
         if self._session is not None:
             await self._session.rollback()
+
+
+async def get_session() -> AsyncIterator[AsyncSession]:
+    """Yield a request-scoped database session."""
+    async with SessionFactory() as session:
+        yield session
 
 
 class InMemoryUnitOfWork:

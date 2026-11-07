@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "staging", "production", "test"] = "development"
     DEBUG: bool = True
     API_PREFIX: str = "/api/v1"
+    AUTH_SECRET: str = Field(
+        default="change-this-development-secret",
+        description="Secret used to sign access tokens; override in production",
+    )
+    ACCESS_TOKEN_EXPIRE_SECONDS: int = 86400
 
     # Database
     DATABASE_URL: str = Field(

@@ -5,7 +5,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from chess_ai.infrastructure.db.models.player_profile import PlayerProfileModel
 from chess_ai.infrastructure.db.models.user import UserModel
 
 
@@ -17,7 +19,9 @@ class SqlAlchemyUserRepository:
 
     async def get_by_id(self, user_id: str) -> UserModel | None:
         result = await self._session.execute(
-            select(UserModel).where(UserModel.id == user_id)
+            select(UserModel)
+            .options(selectinload(UserModel.player_profile))
+            .where(UserModel.id == user_id)
         )
         return result.scalar_one_or_none()
 
@@ -65,3 +69,14 @@ class SqlAlchemyUserRepository:
         )
         self._session.add(user)
         return user
+
+    async def get_profile(self, user_id: str) -> PlayerProfileModel | None:
+        result = await self._session.execute(
+            select(PlayerProfileModel).where(PlayerProfileModel.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create_profile(self, user_id: str) -> PlayerProfileModel:
+        profile = PlayerProfileModel(user_id=user_id)
+        self._session.add(profile)
+        return profile
