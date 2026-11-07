@@ -1,4 +1,4 @@
-import { AuthToken, CreateGamePayload, GameResponse, MakeMovePayload, User } from '../types/chess';
+import { AuthToken, CreateGamePayload, GameResponse, GameReview, MakeMovePayload, User } from '../types/chess';
 
 export interface HealthResponse {
   status: string;
@@ -54,6 +54,15 @@ export async function register(email: string, username: string, password: string
 export async function getCurrentUser(): Promise<User> {
   const response = await fetch(`${API_BASE}/users/me`, { headers: authHeaders() });
   if (!response.ok) throw new Error(await errorMessage(response, 'Your session has expired'));
+  return response.json();
+}
+
+export async function analyzeGame(gameId: string, depth = 16, multipv = 3): Promise<GameReview> {
+  const response = await fetch(
+    `${API_BASE}/games/${gameId}/analysis?depth=${depth}&multipv=${multipv}`,
+    { headers: authHeaders() },
+  );
+  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to analyze this game'));
   return response.json();
 }
 

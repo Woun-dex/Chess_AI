@@ -121,3 +121,44 @@ export interface AuthToken {
   token_type: string;
   expires_in: number;
 }
+
+export interface AnalysisVariation {
+  rank: number;
+  centipawns: number | null;
+  mate_in: number | null;
+  best_move_uci: string;
+  pv: string[];
+}
+
+export interface PositionEvaluation {
+  fen: string;
+  centipawns: number | null;
+  mate_in: number | null;
+  best_move_uci: string;
+  pv: string[];
+  depth: number;
+  variations: AnalysisVariation[];
+}
+
+export interface MoveAnalysis {
+  move_number: number;
+  color: Color;
+  move_uci: string;
+  move_san: string;
+  classification: MoveClassification;
+  centipawn_loss: number;
+  score_before: PositionEvaluation;
+  score_after: PositionEvaluation;
+  tactical_motifs: string[];
+}
+
+export interface GameReview {
+  depth: number;
+  multipv: number;
+  final_evaluation: PositionEvaluation;
+  moves: MoveAnalysis[];
+  classification_counts: Record<string, number>;
+  accuracy: Record<Color, number>;
+  critical_moments: number[];
+  summary: string;
+}

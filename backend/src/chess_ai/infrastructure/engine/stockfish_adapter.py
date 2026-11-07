@@ -12,6 +12,7 @@ from chess_ai.domain.ports.engine import (
     MoveAnalysisResult,
     MoveClassification,
     PositionEvaluation,
+    PositionVariation,
 )
 
 THRESHOLDS: dict[str, int] = {
@@ -57,29 +58,27 @@ class StockfishAdapter(EnginePort):
         fen: str,
         depth: int = 18,
         time_limit_secs: float = 1.0,
+        multipv: int = 1,
     ) -> PositionEvaluation:
         engine = await self._get_engine()
         board = chess.Board(fen)
 
         # Limit: use depth OR time, whichever is first
         limit = chess.engine.Limit(depth=depth, time=time_limit_secs)
-        info = await engine.analyse(board, limit, multipv=1)
-
-        # Extract score (always from White's perspective via .white())
-        score = info["score"].white()
-        cp = score.score()  # centipawns, None if mate
-        mate = score.mate()  # mate in N, None if not mate
-
-        pv = [m.uci() for m in info.get("pv", [])]
-        best_move = pv[0] if pv else ""
+        requested_multipv = max(1, min(multipv, 5))
+        raw_infos = await engine.analyse(board, limit, multipv=requested_multipv)
+        infos = raw_infos if isinstance(raw_infos, list) else [raw_infos]
+        variations = [_to_variation(info, rank) for rank, info in enumerate(infos, start=1)]
+        primary = variations[0] if variations else PositionVariation(1, None, None, "", [])
 
         return PositionEvaluation(
             fen=fen,
-            centipawns=cp,
-            mate_in=mate,
-            best_move_uci=best_move,
-            pv=pv,
-            depth=info.get("depth", depth),
+            centipawns=primary.centipawns,
+            mate_in=primary.mate_in,
+            best_move_uci=primary.best_move_uci,
+            pv=primary.pv,
+            depth=infos[0].get("depth", depth) if infos else depth,
+            variations=variations,
         )
 
     async def analyze_game(
@@ -87,6 +86,7 @@ class StockfishAdapter(EnginePort):
         fens: list[str],
         moves_uci: list[str],
         depth: int = 16,
+        multipv: int = 1,
     ) -> list[MoveAnalysisResult]:
         results: list[MoveAnalysisResult] = []
 
@@ -94,7 +94,7 @@ class StockfishAdapter(EnginePort):
             board = chess.Board(fen_before)
 
             # Evaluate BEFORE the move
-            eval_before = await self.evaluate_position(fen_before, depth=depth)
+            eval_before = await self.evaluate_position(fen_before, depth=depth, multipv=multipv)
 
             # Play the move
             chess_move = chess.Move.from_uci(move_uci)
@@ -103,7 +103,7 @@ class StockfishAdapter(EnginePort):
             fen_after = board.fen()
 
             # Evaluate AFTER the move (from same side perspective)
-            eval_after = await self.evaluate_position(fen_after, depth=depth)
+            eval_after = await self.evaluate_position(fen_after, depth=depth, multipv=multipv)
 
             # Calculate centipawn loss from the moving side's perspective
             # board.turn is now the side to move AFTER the push
@@ -167,6 +167,18 @@ def _compute_centipawn_loss(
         loss = score_after - score_before
 
     return max(0, loss)  # cp_loss is always non-negative
+
+
+def _to_variation(info: dict[str, Any], rank: int) -> PositionVariation:
+    score = info["score"].white()
+    pv = [move.uci() for move in info.get("pv", [])]
+    return PositionVariation(
+        rank=rank,
+        centipawns=score.score(),
+        mate_in=score.mate(),
+        best_move_uci=pv[0] if pv else "",
+        pv=pv,
+    )
 
 
 def _classify_move(

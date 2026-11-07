@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 
@@ -22,6 +22,18 @@ class PositionEvaluation:
     best_move_uci: str
     pv: list[str]  # Principal variation / line
     depth: int
+    variations: list["PositionVariation"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PositionVariation:
+    """One engine line returned by a MultiPV analysis."""
+
+    rank: int
+    centipawns: int | None
+    mate_in: int | None
+    best_move_uci: str
+    pv: list[str]
 
 
 @dataclass(frozen=True)
@@ -44,6 +56,7 @@ class EnginePort(ABC):
         fen: str,
         depth: int = 18,
         time_limit_secs: float = 1.0,
+        multipv: int = 1,
     ) -> PositionEvaluation:
         """Evaluate a single board position."""
         ...
@@ -54,6 +67,7 @@ class EnginePort(ABC):
         fens: list[str],
         moves_uci: list[str],
         depth: int = 16,
+        multipv: int = 1,
     ) -> list[MoveAnalysisResult]:
         """Analyze an entire sequence of moves asynchronously."""
         ...

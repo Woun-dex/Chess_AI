@@ -5,8 +5,8 @@ import {
 } from 'lucide-react';
 import { ChessBoard } from './components/ChessBoard';
 import { AuthPanel } from './components/AuthPanel';
-import { checkBackendHealth, clearAccessToken, createGame, getAccessToken, getCurrentUser, makeMove, resignGame } from './services/api';
-import { CreateGamePayload, GameResponse, GameSettings, MoveRecord, OpponentType, User } from './types/chess';
+import { analyzeGame, checkBackendHealth, clearAccessToken, createGame, getAccessToken, getCurrentUser, makeMove, resignGame } from './services/api';
+import { CreateGamePayload, GameResponse, GameReview, GameSettings, MoveRecord, OpponentType, User } from './types/chess';
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const formatClock = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
@@ -37,6 +37,8 @@ export const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [review, setReview] = useState<GameReview | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
 
   const playerColor = settings.playerColor === 'random' ? 'white' : settings.playerColor;
   const isHumanTurn = game && game.turn === playerColor;
@@ -81,6 +83,7 @@ export const App: React.FC = () => {
       const created = await createGame(payload);
       setSettings({ ...nextSettings, playerColor: selectedColor });
       setGame(created);
+      setReview(null);
       setMoves(toMoves(created));
       setClocks({ white: nextSettings.timeControlSeconds ?? 600, black: nextSettings.timeControlSeconds ?? 600 });
       setOrientation(selectedColor);
@@ -105,6 +108,7 @@ export const App: React.FC = () => {
       });
       setGame(updated);
       setMoves(toMoves(updated));
+      setReview(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Move rejected');
     } finally {
@@ -118,10 +122,24 @@ export const App: React.FC = () => {
     try {
       const updated = await resignGame(game.game_id, user.id);
       setGame(updated);
+      setReview(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to resign');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleReview = async () => {
+    if (!game || reviewBusy) return;
+    setReviewBusy(true);
+    setError(null);
+    try {
+      setReview(await analyzeGame(game.game_id));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to analyze game');
+    } finally {
+      setReviewBusy(false);
     }
   };
 
@@ -155,12 +173,13 @@ export const App: React.FC = () => {
             {game ? <ChessBoard fen={game.fen} orientation={orientation} disabled={busy || gameOver || !isHumanTurn} lastMove={lastMove?.uci} onMove={handleMove} /> : <div className="board-loading"><Loader2 className="spin" /> Preparing board</div>}
             <div className="clock-row clock-row-bottom"><div className={`clock ${game?.turn === 'white' ? 'clock-active' : ''}`}><span>YOU · {playerColor.toUpperCase()}</span><strong>{formatClock(clocks.white)}</strong></div><span className="connection-note"><Shield size={13} /> moves sync automatically</span></div>
           </div>
-          <div className="board-controls"><button onClick={() => setOrientation((value) => value === 'white' ? 'black' : 'white')}><FlipHorizontal size={16} /> Flip board</button><button onClick={handleResign} disabled={!game || gameOver || busy}><Flag size={16} /> Resign</button><button onClick={() => void startGame()} disabled={busy}><RotateCcw size={16} /> New game</button></div>
+          <div className="board-controls"><button onClick={() => setOrientation((value) => value === 'white' ? 'black' : 'white')}><FlipHorizontal size={16} /> Flip board</button><button onClick={handleResign} disabled={!game || gameOver || busy}><Flag size={16} /> Resign</button><button onClick={() => void startGame()} disabled={busy}><RotateCcw size={16} /> New game</button><button onClick={() => void handleReview()} disabled={!game || !moves.length || reviewBusy}>{reviewBusy ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />} {reviewBusy ? 'Analyzing' : 'Review game'}</button></div>
         </section>
 
         <aside className="side-column">
           <div className="panel game-setup"><div className="panel-title"><span><Sparkles size={16} /> GAME SETUP</span><span className={`mini-status ${backendStatus}`} /></div><label>Opponent<select value={settings.opponentType} onChange={(event) => setSettings({ ...settings, opponentType: event.target.value as OpponentType })}><option value="random">Random bot</option><option value="stockfish">Stockfish engine</option><option value="human">Local human</option></select><ChevronDown className="select-chevron" size={15} /></label><label>Play as<select value={settings.playerColor} onChange={(event) => setSettings({ ...settings, playerColor: event.target.value as GameSettings['playerColor'] })}><option value="white">White</option><option value="black">Black</option><option value="random">Random side</option></select><ChevronDown className="select-chevron" size={15} /></label><label>Time control<select value={settings.timeControlSeconds ?? 0} onChange={(event) => setSettings({ ...settings, timeControlSeconds: Number(event.target.value) || null })}><option value={600}>10 min</option><option value={300}>5 min</option><option value={60}>1 min</option><option value={0}>Unlimited</option></select><ChevronDown className="select-chevron" size={15} /></label><button className="primary-button" onClick={() => void startGame()} disabled={busy}><Trophy size={16} /> Start new game</button></div>
           <div className="panel history-panel"><div className="panel-title"><span><TimerReset size={16} /> MOVE HISTORY</span><span className="move-count">{moves.length} moves</span></div><div className="history-list">{movePairs.length === 0 && <div className="empty-history">Your game moves will appear here.</div>}{movePairs.map((pair) => <div className="history-row" key={pair.number}><span className="move-number">{pair.number}.</span><span className={pair.white?.color === playerColor ? 'your-move' : ''}>{pair.white?.san ?? '—'}</span><span className={pair.black?.color === playerColor ? 'your-move' : ''}>{pair.black?.san ?? '—'}</span></div>)}</div></div>
+          {review && <div className="panel review-panel"><div className="panel-title"><span><Sparkles size={16} /> GAME REVIEW</span><span className="move-count">depth {review.depth} · MultiPV {review.multipv}</span></div><p className="review-summary">{review.summary}</p><div className="accuracy-grid"><span>White <strong>{review.accuracy.white}%</strong></span><span>Black <strong>{review.accuracy.black}%</strong></span></div><div className="review-counts">{Object.entries(review.classification_counts).map(([classification, count]) => <span key={classification}><strong>{count}</strong> {classification}</span>)}</div><div className="review-moves">{review.moves.map((move) => <div className={`review-move review-${move.classification}`} key={`${move.move_number}-${move.move_uci}`}><span>{move.move_number}. {move.move_san}</span><strong>{move.classification}</strong><small>{move.centipawn_loss} CPL{move.tactical_motifs.length ? ` · ${move.tactical_motifs.join(', ')}` : ''}</small></div>)}</div></div>}
           <div className="panel note-panel"><div className="note-icon"><Sparkles size={16} /></div><div><strong>Play the position</strong><p>Choose a piece, then choose its destination. Legal moves are checked by the backend.</p></div></div>
         </aside>
       </main>

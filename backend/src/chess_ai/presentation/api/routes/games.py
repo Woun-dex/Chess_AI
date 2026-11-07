@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+import chess.engine
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -12,8 +13,12 @@ from chess_ai.application.commands.game_commands import (
     MakeMoveCommand,
     ResignGameCommand,
 )
+from chess_ai.application.services.game_analysis_service import GameAnalysisService
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
+from chess_ai.config import get_settings
 from chess_ai.domain.models.game import Game
+from chess_ai.domain.ports.engine import PositionEvaluation
+from chess_ai.infrastructure.engine.stockfish_adapter import StockfishAdapter
 from chess_ai.infrastructure.unit_of_work import InMemoryUnitOfWork
 
 router = APIRouter(prefix="/api/v1/games", tags=["Games"])
@@ -97,6 +102,68 @@ class GameResponse(BaseModel):
         )
 
 
+class VariationResponse(BaseModel):
+    rank: int
+    centipawns: int | None
+    mate_in: int | None
+    best_move_uci: str
+    pv: list[str]
+
+
+class EvaluationResponse(BaseModel):
+    fen: str
+    centipawns: int | None
+    mate_in: int | None
+    best_move_uci: str
+    pv: list[str]
+    depth: int
+    variations: list[VariationResponse]
+
+    @classmethod
+    def from_domain(cls, evaluation: PositionEvaluation) -> EvaluationResponse:
+        return cls(
+            fen=evaluation.fen,
+            centipawns=evaluation.centipawns,
+            mate_in=evaluation.mate_in,
+            best_move_uci=evaluation.best_move_uci,
+            pv=evaluation.pv,
+            depth=evaluation.depth,
+            variations=[
+                VariationResponse(
+                    rank=variation.rank,
+                    centipawns=variation.centipawns,
+                    mate_in=variation.mate_in,
+                    best_move_uci=variation.best_move_uci,
+                    pv=variation.pv,
+                )
+                for variation in evaluation.variations
+            ],
+        )
+
+
+class MoveAnalysisResponse(BaseModel):
+    move_number: int
+    color: str
+    move_uci: str
+    move_san: str
+    classification: str
+    centipawn_loss: int
+    score_before: EvaluationResponse
+    score_after: EvaluationResponse
+    tactical_motifs: list[str]
+
+
+class GameReviewResponse(BaseModel):
+    depth: int
+    multipv: int
+    final_evaluation: EvaluationResponse
+    moves: list[MoveAnalysisResponse]
+    classification_counts: dict[str, int]
+    accuracy: dict[str, float]
+    critical_moments: list[int]
+    summary: str
+
+
 # ---------------------------------------------------------------------------
 # Dependency injection
 # ---------------------------------------------------------------------------
@@ -126,6 +193,58 @@ async def create_game(
     )
     game = await use_case.create_game(cmd)
     return GameResponse.from_domain(game)
+
+
+@router.get("/{game_id}/analysis", response_model=GameReviewResponse)
+async def analyze_game(
+    game_id: str,
+    depth: int = 16,
+    multipv: int = 3,
+    use_case: GameUseCase = Depends(get_game_use_case),
+) -> GameReviewResponse:
+    async with use_case._uow as uow:
+        game = await uow.games.get_by_id(game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
+
+    settings = get_settings()
+    engine = StockfishAdapter(
+        engine_path=settings.STOCKFISH_PATH,
+        threads=settings.STOCKFISH_ANALYSIS_THREADS,
+    )
+    try:
+        review = await GameAnalysisService(engine).review(game, depth=depth, multipv=multipv)
+    except (FileNotFoundError, OSError, chess.engine.EngineError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stockfish analysis is currently unavailable",
+        ) from exc
+    finally:
+        await engine.close()
+
+    return GameReviewResponse(
+        depth=review.depth,
+        multipv=review.multipv,
+        final_evaluation=EvaluationResponse.from_domain(review.final_evaluation),
+        moves=[
+            MoveAnalysisResponse(
+                move_number=move.move_number,
+                color=move.color,
+                move_uci=move.result.move_uci,
+                move_san=move.result.move_san,
+                classification=move.result.classification.value,
+                centipawn_loss=move.result.centipawn_loss,
+                score_before=EvaluationResponse.from_domain(move.result.score_before),
+                score_after=EvaluationResponse.from_domain(move.result.score_after),
+                tactical_motifs=move.result.tactical_motifs,
+            )
+            for move in review.moves
+        ],
+        classification_counts=review.classification_counts,
+        accuracy=review.accuracy,
+        critical_moments=review.critical_moments,
+        summary=review.summary,
+    )
 
 
 @router.get("/{game_id}", response_model=GameResponse)
