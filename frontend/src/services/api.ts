@@ -1,5 +1,15 @@
 import { AuthToken, CreateGamePayload, GameResponse, GameReview, MakeMovePayload, User } from '../types/chess';
 
+interface AnalysisJobResponse {
+  job_id: string;
+  game_id: string;
+  status: 'queued' | 'running' | 'completed' | 'retrying' | 'dead';
+  attempts: number;
+  progress: number;
+  error_message: string | null;
+  result: GameReview | null;
+}
+
 export interface HealthResponse {
   status: string;
   environment: string;
@@ -58,12 +68,22 @@ export async function getCurrentUser(): Promise<User> {
 }
 
 export async function analyzeGame(gameId: string, depth = 16, multipv = 3): Promise<GameReview> {
-  const response = await fetch(
-    `${API_BASE}/games/${gameId}/analysis?depth=${depth}&multipv=${multipv}`,
-    { headers: authHeaders() },
-  );
-  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to analyze this game'));
-  return response.json();
+  const response = await fetch(`${API_BASE}/games/${gameId}/analysis?depth=${depth}&multipv=${multipv}`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to queue analysis'));
+
+  const job = (await response.json()) as AnalysisJobResponse;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (job.status === 'completed' && job.result) return job.result;
+    if (job.status === 'dead') throw new Error(job.error_message || 'Analysis failed after retries');
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    const statusResponse = await fetch(`${API_BASE}/games/${gameId}/analysis`, { headers: authHeaders() });
+    if (!statusResponse.ok) throw new Error(await errorMessage(statusResponse, 'Unable to retrieve analysis status'));
+    Object.assign(job, (await statusResponse.json()) as AnalysisJobResponse);
+  }
+  throw new Error('Analysis is taking longer than expected. Please try again shortly.');
 }
 
 export async function checkBackendHealth(): Promise<HealthResponse> {

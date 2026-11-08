@@ -1,5 +1,6 @@
 """ORM models package — import all models here so Alembic can discover them."""
 
+from chess_ai.infrastructure.db.models.analysis_job import AnalysisJobModel
 from chess_ai.infrastructure.db.models.game import GameModel
 from chess_ai.infrastructure.db.models.game_analysis import GameAnalysisModel
 from chess_ai.infrastructure.db.models.game_move import GameMoveModel
@@ -22,6 +23,7 @@ from chess_ai.infrastructure.db.models.tutor_session import TutorMessageModel, T
 from chess_ai.infrastructure.db.models.user import UserModel
 
 __all__ = [
+    "AnalysisJobModel",
     "ExerciseAttemptModel",
     "ExerciseModel",
     "GameAnalysisModel",

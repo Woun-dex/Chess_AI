@@ -4,22 +4,23 @@ from __future__ import annotations
 
 import uuid
 
-import chess.engine
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from chess_ai.application.commands.game_commands import (
     CreateGameCommand,
     MakeMoveCommand,
     ResignGameCommand,
 )
-from chess_ai.application.services.game_analysis_service import GameAnalysisService
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
-from chess_ai.config import get_settings
 from chess_ai.domain.models.game import Game
 from chess_ai.domain.ports.engine import PositionEvaluation
-from chess_ai.infrastructure.engine.stockfish_adapter import StockfishAdapter
+from chess_ai.infrastructure.db.models.analysis_job import AnalysisJobModel, AnalysisJobStatus
+from chess_ai.infrastructure.queue.tasks import run_analysis
 from chess_ai.infrastructure.unit_of_work import InMemoryUnitOfWork
+from chess_ai.presentation.api.dependencies import Session
 
 router = APIRouter(prefix="/api/v1/games", tags=["Games"])
 
@@ -166,6 +167,16 @@ class GameReviewResponse(BaseModel):
     summary: str
 
 
+class AnalysisJobResponse(BaseModel):
+    job_id: str
+    game_id: str
+    status: str
+    attempts: int
+    progress: float
+    error_message: str | None = None
+    result: GameReviewResponse | None = None
+
+
 # ---------------------------------------------------------------------------
 # Dependency injection
 # ---------------------------------------------------------------------------
@@ -197,56 +208,95 @@ async def create_game(
     return GameResponse.from_domain(game)
 
 
-@router.get("/{game_id}/analysis", response_model=GameReviewResponse)
+def _snapshot_game(game: Game) -> dict[str, object]:
+    return {
+        "game_id": game.game_id,
+        "white_player_id": game.white_player_id,
+        "black_player_id": game.black_player_id,
+        "opponent_type": game.opponent_type,
+        "bot_skill_level": game.bot_skill_level,
+        "time_control_seconds": game.time_control_seconds,
+        "version": game.version,
+        "moves": [
+            {
+                "move_id": move.move_id,
+                "uci": move.uci,
+                "san": move.san,
+                "fen_before": move.fen_before,
+                "fen_after": move.fen_after,
+                "move_number": move.move_number,
+                "color": move.color.value,
+            }
+            for move in game.moves
+        ],
+    }
+
+
+def _job_response(job: AnalysisJobModel) -> AnalysisJobResponse:
+    return AnalysisJobResponse(
+        job_id=job.id,
+        game_id=job.game_id,
+        status=job.status,
+        attempts=job.attempts,
+        progress=job.progress,
+        error_message=job.error_message,
+        result=GameReviewResponse.model_validate(job.result) if job.result else None,
+    )
+
+
+@router.post("/{game_id}/analysis", response_model=AnalysisJobResponse, status_code=202)
 async def analyze_game(
     game_id: str,
+    session: Session,
     depth: int = 16,
     multipv: int = 3,
     use_case: GameUseCase = Depends(get_game_use_case),
-) -> GameReviewResponse:
+) -> AnalysisJobResponse:
     async with use_case._uow as uow:
         game = await uow.games.get_by_id(game_id)
     if game is None:
         raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
 
-    settings = get_settings()
-    engine = StockfishAdapter(
-        engine_path=settings.STOCKFISH_PATH,
-        threads=settings.STOCKFISH_ANALYSIS_THREADS,
+    depth = max(1, min(depth, 30))
+    multipv = max(1, min(multipv, 5))
+    job = AnalysisJobModel(
+        game_id=game.game_id,
+        game_version=game.version,
+        depth=depth,
+        multipv=multipv,
+        game_snapshot=_snapshot_game(game),
+        status=AnalysisJobStatus.QUEUED,
     )
+    session.add(job)
     try:
-        review = await GameAnalysisService(engine).review(game, depth=depth, multipv=multipv)
-    except (FileNotFoundError, OSError, chess.engine.EngineError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Stockfish analysis is currently unavailable",
-        ) from exc
-    finally:
-        await engine.close()
-
-    return GameReviewResponse(
-        depth=review.depth,
-        multipv=review.multipv,
-        final_evaluation=EvaluationResponse.from_domain(review.final_evaluation),
-        moves=[
-            MoveAnalysisResponse(
-                move_number=move.move_number,
-                color=move.color,
-                move_uci=move.result.move_uci,
-                move_san=move.result.move_san,
-                classification=move.result.classification.value,
-                centipawn_loss=move.result.centipawn_loss,
-                score_before=EvaluationResponse.from_domain(move.result.score_before),
-                score_after=EvaluationResponse.from_domain(move.result.score_after),
-                tactical_motifs=move.result.tactical_motifs,
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+        job = await session.scalar(
+            select(AnalysisJobModel).where(
+                AnalysisJobModel.game_id == game.game_id,
+                AnalysisJobModel.game_version == game.version,
+                AnalysisJobModel.depth == depth,
+                AnalysisJobModel.multipv == multipv,
             )
-            for move in review.moves
-        ],
-        classification_counts=review.classification_counts,
-        accuracy=review.accuracy,
-        critical_moments=review.critical_moments,
-        summary=review.summary,
+        )
+        if job is None:
+            raise HTTPException(status_code=503, detail="Unable to create analysis job")
+        return _job_response(job)
+    run_analysis.delay(job.id)
+    return _job_response(job)
+
+
+@router.get("/{game_id}/analysis", response_model=AnalysisJobResponse)
+async def get_analysis_status(game_id: str, session: Session) -> AnalysisJobResponse:
+    job = await session.scalar(
+        select(AnalysisJobModel)
+        .where(AnalysisJobModel.game_id == game_id)
+        .order_by(AnalysisJobModel.queued_at.desc())
     )
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"No analysis job found for game {game_id}")
+    return _job_response(job)
 
 
 @router.get("/{game_id}", response_model=GameResponse)

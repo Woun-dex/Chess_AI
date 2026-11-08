@@ -26,6 +26,16 @@ The API exposes:
 - `GET /api/v1/users/me` to retrieve the authenticated account and profile.
 - `PATCH /api/v1/users/me/profile` to update profile preferences.
 
+Game analysis is processed asynchronously by the Celery worker through Redis:
+
+- `POST /api/v1/games/{game_id}/analysis` queues an idempotent analysis job.
+- `GET /api/v1/games/{game_id}/analysis` returns queued, running, retrying,
+  completed, or dead job state.
+
+The worker retries transient Stockfish failures up to three attempts. Jobs that
+exhaust retries remain in the durable `dead` state with their error message for
+operator inspection instead of silently disappearing.
+
 Send tokens as `Authorization: Bearer <access_token>`. Set `AUTH_SECRET` to a
 long, random value outside development; the default is intentionally only for
 local development. The container entrypoint applies pending Alembic migrations
