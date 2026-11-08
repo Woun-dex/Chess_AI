@@ -30,8 +30,13 @@ RUN uv venv && uv pip install -e ".[dev]"
 COPY src/ ./src/
 COPY tests/ ./tests/
 COPY ruff.toml ./
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
 
 EXPOSE 8000
 
 CMD ["uvicorn", "chess_ai.presentation.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-

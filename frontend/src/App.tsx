@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { AuthPanel } from './features/auth/AuthPanel';
 import { ChessBoard } from './features/play/ChessBoard';
+import { CheckmateModal } from './features/play/CheckmateModal';
 import { GameReviewPanel } from './features/review/GameReviewPanel';
 import { analyzeGame, checkBackendHealth, clearAccessToken, createGame, getAccessToken, getCurrentUser, makeMove, resignGame } from './services/api';
 import { CreateGamePayload, GameResponse, GameReview, GameSettings, MoveRecord, OpponentType, User } from './types/chess';
@@ -40,11 +41,16 @@ export const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [review, setReview] = useState<GameReview | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [showGameResult, setShowGameResult] = useState(false);
 
   const playerColor = settings.playerColor === 'random' ? 'white' : settings.playerColor;
   const isHumanTurn = game && game.turn === playerColor;
   const lastMove = moves[moves.length - 1];
   const gameOver = game?.status !== 'in_progress';
+
+  useEffect(() => {
+    setShowGameResult(game?.status === 'checkmate');
+  }, [game?.game_id, game?.status]);
 
   useEffect(() => {
     checkBackendHealth().then(() => setBackendStatus('online')).catch(() => setBackendStatus('offline'));
@@ -133,6 +139,7 @@ export const App: React.FC = () => {
 
   const handleReview = async () => {
     if (!game || reviewBusy) return;
+    setShowGameResult(false);
     setReviewBusy(true);
     setError(null);
     try {
@@ -185,6 +192,18 @@ export const App: React.FC = () => {
         </aside>
       </main>
       {error && <div className="error-toast"><X size={16} /><span>{error}</span><button onClick={() => setError(null)}>Dismiss</button></div>}
+      {game?.status === 'checkmate' && showGameResult && (
+        <CheckmateModal
+          game={game}
+          playerColor={playerColor}
+          onClose={() => setShowGameResult(false)}
+          onNewGame={() => {
+            setShowGameResult(false);
+            void startGame();
+          }}
+          onReview={() => void handleReview()}
+        />
+      )}
     </div>
   );
 };

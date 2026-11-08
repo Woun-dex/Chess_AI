@@ -28,5 +28,6 @@ The API exposes:
 
 Send tokens as `Authorization: Bearer <access_token>`. Set `AUTH_SECRET` to a
 long, random value outside development; the default is intentionally only for
-local development. User and profile tables are created by the initial Alembic
-migration.
+local development. The container entrypoint applies pending Alembic migrations
+before starting the API or worker, including the initial migration that creates
+the user and profile tables.
