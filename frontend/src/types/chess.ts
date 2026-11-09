@@ -61,6 +61,7 @@ export interface GameResponse {
   black_player_id: string;
   opponent_type: OpponentType;
   bot_skill_level: number;
+  opponent_elo: number;
   time_control_seconds: number | null;
   winner: Color | 'draw' | null;
   moves: {
@@ -77,6 +78,7 @@ export interface CreateGamePayload {
   black_player_id: string;
   opponent_type: OpponentType;
   bot_skill_level: number;
+  opponent_elo: number;
   time_control_seconds: number | null;
 }
 
@@ -90,6 +92,7 @@ export interface GameSettings {
   playerColor: 'white' | 'black' | 'random';
   opponentType: OpponentType;
   botSkillLevel: number;
+  opponentElo: number;
   timeControlSeconds: number | null;
 }
 
@@ -147,6 +150,7 @@ export interface MoveAnalysis {
   move_san: string;
   classification: MoveClassification;
   centipawn_loss: number;
+  coach_explanation: string;
   score_before: PositionEvaluation;
   score_after: PositionEvaluation;
   tactical_motifs: string[];

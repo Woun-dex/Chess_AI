@@ -45,6 +45,11 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     environment:
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/chess_ai
       - REDIS_URL=redis://redis:6379/0
@@ -97,9 +102,10 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_PROXY_TARGET=http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

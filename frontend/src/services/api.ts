@@ -67,7 +67,12 @@ export async function getCurrentUser(): Promise<User> {
   return response.json();
 }
 
-export async function analyzeGame(gameId: string, depth = 16, multipv = 3): Promise<GameReview> {
+export async function analyzeGame(
+  gameId: string,
+  depth = 12,
+  multipv = 2,
+  onProgress?: (status: AnalysisJobResponse) => void,
+): Promise<GameReview> {
   const response = await fetch(`${API_BASE}/games/${gameId}/analysis?depth=${depth}&multipv=${multipv}`, {
     method: 'POST',
     headers: authHeaders(),
@@ -75,15 +80,17 @@ export async function analyzeGame(gameId: string, depth = 16, multipv = 3): Prom
   if (!response.ok) throw new Error(await errorMessage(response, 'Unable to queue analysis'));
 
   const job = (await response.json()) as AnalysisJobResponse;
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  onProgress?.(job);
+  for (let attempt = 0; attempt < 600; attempt += 1) {
     if (job.status === 'completed' && job.result) return job.result;
     if (job.status === 'dead') throw new Error(job.error_message || 'Analysis failed after retries');
     await new Promise((resolve) => window.setTimeout(resolve, 1000));
     const statusResponse = await fetch(`${API_BASE}/games/${gameId}/analysis`, { headers: authHeaders() });
     if (!statusResponse.ok) throw new Error(await errorMessage(statusResponse, 'Unable to retrieve analysis status'));
     Object.assign(job, (await statusResponse.json()) as AnalysisJobResponse);
+    onProgress?.(job);
   }
-  throw new Error('Analysis is taking longer than expected. Please try again shortly.');
+  throw new Error('Analysis is still running. Open Game review again in a moment to see the completed recap.');
 }
 
 export async function checkBackendHealth(): Promise<HealthResponse> {
@@ -159,5 +166,15 @@ export async function resignGame(
     throw new Error(`Failed to resign game (${response.status})`);
   }
 
+  return response.json();
+}
+
+export async function undoGame(gameId: string, playerId: string, expectedVersion: number): Promise<GameResponse> {
+  const response = await fetch(`${API_BASE}/games/${gameId}/undo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ player_id: playerId, expected_version: expectedVersion }),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, 'Unable to undo the last move'));
   return response.json();
 }
