@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import chess.engine
+from sqlalchemy import and_, or_, update
 
 from chess_ai.application.services.game_analysis_service import GameAnalysisService
 from chess_ai.config import get_settings
@@ -55,6 +56,7 @@ def _review_to_json(review: Any) -> dict[str, object]:
                 "move_san": move.result.move_san,
                 "classification": move.result.classification.value,
                 "centipawn_loss": move.result.centipawn_loss,
+                "coach_explanation": move.coach_explanation,
                 "score_before": _evaluation_to_json(move.result.score_before),
                 "score_after": _evaluation_to_json(move.result.score_after),
                 "tactical_motifs": move.result.tactical_motifs,
@@ -91,14 +93,34 @@ def _evaluation_to_json(evaluation: Any) -> dict[str, object]:
 
 async def _run_analysis(job_id: str) -> None:
     async with SessionFactory() as session:
-        job = await session.get(AnalysisJobModel, job_id)
-        if job is None or job.status == AnalysisJobStatus.COMPLETED:
+        now = datetime.now(UTC)
+        claim = await session.execute(
+            update(AnalysisJobModel)
+            .where(
+                AnalysisJobModel.id == job_id,
+                or_(
+                    AnalysisJobModel.status.in_(
+                        [AnalysisJobStatus.QUEUED, AnalysisJobStatus.RETRYING]
+                    ),
+                    and_(
+                        AnalysisJobModel.status == AnalysisJobStatus.RUNNING,
+                        AnalysisJobModel.started_at < now - timedelta(minutes=30),
+                    ),
+                ),
+            )
+            .values(
+                status=AnalysisJobStatus.RUNNING,
+                attempts=AnalysisJobModel.attempts + 1,
+                started_at=now,
+                progress=0.05,
+            )
+        )
+        if claim.rowcount != 1:
             return
-        job.status = AnalysisJobStatus.RUNNING
-        job.attempts += 1
-        job.started_at = datetime.now(UTC)
-        job.progress = 0.05
         await session.commit()
+        job = await session.get(AnalysisJobModel, job_id)
+        if job is None:
+            return
 
         engine = StockfishAdapter(
             engine_path=get_settings().STOCKFISH_PATH,
@@ -106,8 +128,16 @@ async def _run_analysis(job_id: str) -> None:
         )
         try:
             game = _game_from_snapshot(job.game_snapshot)
+
+            async def update_progress(progress: float) -> None:
+                job.progress = progress
+                await session.commit()
+
             review = await GameAnalysisService(engine).review(
-                game, depth=job.depth, multipv=job.multipv
+                game,
+                depth=job.depth,
+                multipv=job.multipv,
+                progress_callback=update_progress,
             )
             job.result = _review_to_json(review)
             job.status = AnalysisJobStatus.COMPLETED

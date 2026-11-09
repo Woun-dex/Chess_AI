@@ -19,12 +19,10 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app/src"
 
 # Copy dependency manifests first for layer caching
 COPY pyproject.toml README.md ./
-
-# Install dependencies using uv sync
-RUN uv venv && uv pip install -e ".[dev]"
 
 # Copy application source
 COPY src/ ./src/
@@ -34,6 +32,9 @@ COPY alembic.ini ./
 COPY migrations/ ./migrations/
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
+
+# Install after the source is available so the editable package is valid.
+RUN uv venv && uv pip install -e ".[dev]"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
 

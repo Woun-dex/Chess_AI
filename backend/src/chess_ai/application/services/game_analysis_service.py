@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from math import exp
 
@@ -15,6 +16,7 @@ class MoveReview:
     move_number: int
     color: str
     result: MoveAnalysisResult
+    coach_explanation: str
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,7 @@ class GameAnalysisService:
         game: Game,
         depth: int = 16,
         multipv: int = 3,
+        progress_callback: Callable[[float], Awaitable[None]] | None = None,
     ) -> GameReview:
         requested_depth = max(1, min(depth, 30))
         requested_multipv = max(1, min(multipv, 5))
@@ -56,14 +59,18 @@ class GameAnalysisService:
             depth=requested_depth,
             multipv=requested_multipv,
         )
-        reviewed_moves = [
-            MoveReview(
-                move_number=move.move_number,
-                color=move.color.value,
-                result=result,
+        reviewed_moves: list[MoveReview] = []
+        for index, (move, result) in enumerate(zip(game.moves, results, strict=False), start=1):
+            reviewed_moves.append(
+                MoveReview(
+                    move_number=move.move_number,
+                    color=move.color.value,
+                    result=result,
+                    coach_explanation=_coach_explanation(move.san, result),
+                )
             )
-            for move, result in zip(game.moves, results, strict=False)
-        ]
+            if progress_callback:
+                await progress_callback(0.1 + (0.8 * index / max(len(game.moves), 1)))
         counts = Counter(move.result.classification.value for move in reviewed_moves)
         losses = {
             color: [move.result.centipawn_loss for move in reviewed_moves if move.color == color]
@@ -115,3 +122,35 @@ def _summary(
         f"The biggest swing was move {worst.move_number} ({worst.result.move_san}), "
         f"classified as {worst.result.classification.value}."
     )
+
+
+def _coach_explanation(move_san: str, result: MoveAnalysisResult) -> str:
+    """Explain the engine result in plain language without inventing tactics."""
+    classification = result.classification.value
+    best_move = result.score_before.best_move_uci
+    variation = " ".join(result.score_before.pv[:4])
+    motifs = ", ".join(result.tactical_motifs)
+
+    if classification in {"blunder", "mistake", "inaccuracy"}:
+        explanation = (
+            f"{move_san} was classified as a {classification} with "
+            f"{result.centipawn_loss} centipawns lost. "
+        )
+        if best_move:
+            explanation += f"The engine preferred {best_move}"
+            if variation:
+                explanation += f", continuing {variation}."
+            else:
+                explanation += "."
+        else:
+            explanation += "Look for a forcing check, capture, or threat before committing."
+        return explanation
+
+    explanation = f"{move_san} was a {classification} move"
+    if motifs:
+        explanation += f" featuring {motifs}"
+    if variation:
+        explanation += f". The engine continuation was {variation}."
+    else:
+        explanation += ". It preserved the position's evaluation."
+    return explanation

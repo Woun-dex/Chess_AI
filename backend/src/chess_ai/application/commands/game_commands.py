@@ -11,6 +11,7 @@ class CreateGameCommand:
     black_player_id: str
     opponent_type: str = "stockfish"  # human | stockfish | random
     bot_skill_level: int = 10
+    opponent_elo: int = 1400
     time_control_seconds: int | None = None
 
 
@@ -27,6 +28,13 @@ class MakeMoveCommand:
 class ResignGameCommand:
     game_id: str
     player_id: str
+
+
+@dataclass(frozen=True)
+class UndoMoveCommand:
+    game_id: str
+    player_id: str
+    expected_version: int
 
 
 @dataclass(frozen=True)

@@ -2,7 +2,11 @@
 
 import pytest
 
-from chess_ai.application.commands.game_commands import CreateGameCommand, MakeMoveCommand
+from chess_ai.application.commands.game_commands import (
+    CreateGameCommand,
+    MakeMoveCommand,
+    UndoMoveCommand,
+)
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
 from chess_ai.domain.models.game import Color, GameStatus
 from chess_ai.infrastructure.engine.opponent_strategy import RandomOpponentStrategy
@@ -58,3 +62,24 @@ async def test_make_move_triggers_bot_response() -> None:
     assert updated_game.moves[1].color == Color.BLACK
     assert updated_game.turn == Color.WHITE
     assert updated_game.version == 3
+
+
+@pytest.mark.asyncio
+async def test_undo_removes_player_and_bot_turn() -> None:
+    uow = InMemoryUnitOfWork()
+    use_case = GameUseCase(uow=uow, opponent_strategy=RandomOpponentStrategy())
+    game = await use_case.create_game(
+        CreateGameCommand(white_player_id="human", black_player_id="bot")
+    )
+    updated = await use_case.make_move(
+        MakeMoveCommand(game.game_id, "e2e4", "human", 1, "undo-test")
+    )
+    updated_version = updated.version
+
+    undone = await use_case.undo_move(
+        UndoMoveCommand(updated.game_id, "human", updated.version)
+    )
+
+    assert undone.moves == []
+    assert undone.fen == game.fen
+    assert undone.version == updated_version + 1

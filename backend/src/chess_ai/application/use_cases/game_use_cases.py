@@ -6,6 +6,7 @@ from chess_ai.application.commands.game_commands import (
     CreateGameCommand,
     MakeMoveCommand,
     ResignGameCommand,
+    UndoMoveCommand,
 )
 from chess_ai.domain.models.game import Color, Game
 from chess_ai.domain.ports.repository import UnitOfWork
@@ -37,7 +38,7 @@ class GameUseCase:
         return BotOpponentFactory.create(
             opponent_type=game.opponent_type,
             engine_path=settings.STOCKFISH_PATH,
-            skill_level=game.bot_skill_level,
+            skill_level=round((game.opponent_elo - 800) / 110),
         )
 
     async def create_game(self, cmd: CreateGameCommand) -> Game:
@@ -47,6 +48,7 @@ class GameUseCase:
                 black_player_id=cmd.black_player_id,
                 opponent_type=cmd.opponent_type,
                 bot_skill_level=cmd.bot_skill_level,
+                opponent_elo=cmd.opponent_elo,
                 time_control_seconds=cmd.time_control_seconds,
             )
 
@@ -101,6 +103,21 @@ class GameUseCase:
             player_color = Color.WHITE if cmd.player_id == game.white_player_id else Color.BLACK
             game.resign(player_color)
 
+            await uow.games.save(game)
+            await uow.commit()
+            return game
+
+    async def undo_move(self, cmd: UndoMoveCommand) -> Game:
+        async with self._uow as uow:
+            game = await uow.games.get_by_id(cmd.game_id)
+            if game is None:
+                raise ValueError(f"Game {cmd.game_id} not found")
+            if cmd.player_id not in {game.white_player_id, game.black_player_id}:
+                raise ValueError("Only a player in this game can undo moves")
+            if cmd.expected_version != game.version:
+                raise ValueError("Game changed before undo was requested")
+            count = 2 if game.opponent_type != "human" and len(game.moves) >= 2 else 1
+            game.undo_moves(min(count, len(game.moves)))
             await uow.games.save(game)
             await uow.commit()
             return game

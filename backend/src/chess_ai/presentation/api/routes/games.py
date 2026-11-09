@@ -13,6 +13,7 @@ from chess_ai.application.commands.game_commands import (
     CreateGameCommand,
     MakeMoveCommand,
     ResignGameCommand,
+    UndoMoveCommand,
 )
 from chess_ai.application.use_cases.game_use_cases import GameUseCase
 from chess_ai.domain.models.game import Game
@@ -41,6 +42,7 @@ class CreateGameRequest(BaseModel):
     black_player_id: str = "bot"
     opponent_type: str = Field(default="stockfish", pattern="^(stockfish|random|human)$")
     bot_skill_level: int = Field(default=10, ge=0, le=20)
+    opponent_elo: int = Field(default=1400, ge=800, le=2800)
     time_control_seconds: int | None = None
 
 
@@ -54,6 +56,11 @@ class MakeMoveRequest(BaseModel):
 
 class ResignGameRequest(BaseModel):
     player_id: str = "player1"
+
+
+class UndoMoveRequest(BaseModel):
+    player_id: str = "player1"
+    expected_version: int
 
 
 class MoveResponse(BaseModel):
@@ -74,6 +81,7 @@ class GameResponse(BaseModel):
     black_player_id: str
     opponent_type: str
     bot_skill_level: int
+    opponent_elo: int
     time_control_seconds: int | None
     winner: str | None
     moves: list[MoveResponse]
@@ -90,6 +98,7 @@ class GameResponse(BaseModel):
             black_player_id=game.black_player_id,
             opponent_type=game.opponent_type,
             bot_skill_level=game.bot_skill_level,
+            opponent_elo=game.opponent_elo,
             time_control_seconds=game.time_control_seconds,
             winner=game.winner.value if game.winner else None,
             moves=[
@@ -151,6 +160,7 @@ class MoveAnalysisResponse(BaseModel):
     move_san: str
     classification: str
     centipawn_loss: int
+    coach_explanation: str = ""
     score_before: EvaluationResponse
     score_after: EvaluationResponse
     tactical_motifs: list[str]
@@ -202,6 +212,7 @@ async def create_game(
         black_player_id=request.black_player_id,
         opponent_type=request.opponent_type,
         bot_skill_level=request.bot_skill_level,
+        opponent_elo=request.opponent_elo,
         time_control_seconds=request.time_control_seconds,
     )
     game = await use_case.create_game(cmd)
@@ -248,8 +259,8 @@ def _job_response(job: AnalysisJobModel) -> AnalysisJobResponse:
 async def analyze_game(
     game_id: str,
     session: Session,
-    depth: int = 16,
-    multipv: int = 3,
+    depth: int = 12,
+    multipv: int = 2,
     use_case: GameUseCase = Depends(get_game_use_case),
 ) -> AnalysisJobResponse:
     async with use_case._uow as uow:
@@ -281,7 +292,9 @@ async def analyze_game(
             )
         )
         if job is None:
-            raise HTTPException(status_code=503, detail="Unable to create analysis job")
+            raise HTTPException(
+                status_code=503, detail="Unable to create analysis job"
+            ) from None
         return _job_response(job)
     run_analysis.delay(job.id)
     return _job_response(job)
@@ -337,4 +350,23 @@ async def resign_game(
 ) -> GameResponse:
     cmd = ResignGameCommand(game_id=game_id, player_id=request.player_id)
     game = await use_case.resign_game(cmd)
+    return GameResponse.from_domain(game)
+
+
+@router.post("/{game_id}/undo", response_model=GameResponse, status_code=status.HTTP_200_OK)
+async def undo_game(
+    game_id: str,
+    request: UndoMoveRequest,
+    use_case: GameUseCase = Depends(get_game_use_case),
+) -> GameResponse:
+    try:
+        game = await use_case.undo_move(
+            UndoMoveCommand(
+                game_id=game_id,
+                player_id=request.player_id,
+                expected_version=request.expected_version,
+            )
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return GameResponse.from_domain(game)

@@ -57,6 +57,7 @@ class Game:
     black_player_id: str = "bot"
     opponent_type: str = "stockfish"
     bot_skill_level: int = 10
+    opponent_elo: int = 1400
     time_control_seconds: int | None = None
     status: GameStatus = GameStatus.IN_PROGRESS
     winner: Color | None = None
@@ -146,6 +147,20 @@ class Game:
         self.winner = Color.BLACK if player_color == Color.WHITE else Color.WHITE
         self.version += 1
         self.updated_at = datetime.now(UTC)
+
+    def undo_moves(self, count: int = 1) -> None:
+        """Undo recent plies and reconstruct the position from the remaining moves."""
+        if self.is_game_over:
+            raise GameNotInProgressError("Cannot undo a finished game")
+        if count < 1 or count > len(self.moves):
+            raise ValueError("No moves available to undo")
+        del self.moves[-count:]
+        self._board = chess.Board()
+        for move_rec in self.moves:
+            self._board.push_uci(move_rec.uci)
+        self.version += 1
+        self.updated_at = datetime.now(UTC)
+        self._update_status_from_board()
 
     def _update_status_from_board(self) -> None:
         if self._board.is_checkmate():
